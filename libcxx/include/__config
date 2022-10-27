@@ -265,6 +265,9 @@
 #    define _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
 #  endif
 
+#undef _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
+#undef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
+
 // Need to detect which libc we're using if we're on Linux.
 #  if defined(__linux__)
 #    include <features.h>
