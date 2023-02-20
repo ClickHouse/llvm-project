@@ -12,9 +12,11 @@
 #include "gwp_asan/utilities.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <time.h>
 #include <unistd.h>
@@ -75,8 +77,10 @@ void GuardedPoolAllocator::unreserveGuardedPool() {
 void GuardedPoolAllocator::allocateInGuardedPool(void *Ptr, size_t Size) const {
   assert((reinterpret_cast<uintptr_t>(Ptr) % State.PageSize) == 0);
   assert((Size % State.PageSize) == 0);
-  Check(mprotect(Ptr, Size, PROT_READ | PROT_WRITE) == 0,
-        "Failed to allocate in guarded pool allocator memory");
+  if (mprotect(Ptr, Size, PROT_READ | PROT_WRITE) != 0)
+  {
+    die(strerror(errno));
+  }
   MaybeSetMappingName(Ptr, Size, kGwpAsanAliveSlotName);
 }
 
