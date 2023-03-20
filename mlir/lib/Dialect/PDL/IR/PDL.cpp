@@ -13,6 +13,7 @@
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::pdl;
@@ -48,7 +49,7 @@ static bool hasBindingUse(Operation *op) {
 /// is used by a "binding" operation. On failure, emits an error.
 static LogicalResult verifyHasBindingUse(Operation *op) {
   // If the parent is not a pattern, there is nothing to do.
-  if (!isa<PatternOp>(op->getParentOp()))
+  if (!llvm::isa_and_nonnull<PatternOp>(op->getParentOp()))
     return success();
   if (hasBindingUse(op))
     return success();
@@ -78,7 +79,7 @@ static void visit(Operation *op, DenseSet<Operation *> &visited) {
           visit(operand.getDefiningOp(), visited);
       })
       .Case<ResultOp, ResultsOp>([&visited](auto result) {
-        visit(result.parent().getDefiningOp(), visited);
+        visit(result.getParent().getDefiningOp(), visited);
       });
 
   // Traverse the users.
@@ -112,7 +113,7 @@ LogicalResult ApplyNativeRewriteOp::verify() {
 
 LogicalResult AttributeOp::verify() {
   Value attrType = getValueType();
-  Optional<Attribute> attrValue = value();
+  std::optional<Attribute> attrValue = getValue();
 
   if (!attrValue) {
     if (isa<RewriteOp>((*this)->getParentOp()))
@@ -196,17 +197,17 @@ static LogicalResult verifyResultTypesAreInferrable(OperationOp op,
 
   // Check to see if the uses of the operation itself can be used to infer
   // types.
-  if (llvm::any_of(op.op().getUses(), canInferTypeFromUse))
+  if (llvm::any_of(op.getOp().getUses(), canInferTypeFromUse))
     return success();
 
   // Handle the case where the operation has no explicit result types.
   if (resultTypes.empty()) {
     // If we don't know the concrete operation, don't attempt any verification.
     // We can't make assumptions if we don't know the concrete operation.
-    Optional<StringRef> rawOpName = op.getOpName();
+    std::optional<StringRef> rawOpName = op.getOpName();
     if (!rawOpName)
       return success();
-    Optional<RegisteredOperationName> opName =
+    std::optional<RegisteredOperationName> opName =
         RegisteredOperationName::lookup(*rawOpName, op.getContext());
     if (!opName)
       return success();
@@ -265,7 +266,7 @@ static LogicalResult verifyResultTypesAreInferrable(OperationOp op,
 }
 
 LogicalResult OperationOp::verify() {
-  bool isWithinRewrite = isa<RewriteOp>((*this)->getParentOp());
+  bool isWithinRewrite = isa_and_nonnull<RewriteOp>((*this)->getParentOp());
   if (isWithinRewrite && !getOpName())
     return emitOpError("must have an operation name when nested within "
                        "a `pdl.rewrite`");
@@ -290,7 +291,7 @@ LogicalResult OperationOp::verify() {
 }
 
 bool OperationOp::hasTypeInference() {
-  if (Optional<StringRef> rawOpName = getOpName()) {
+  if (std::optional<StringRef> rawOpName = getOpName()) {
     OperationName opName(*rawOpName, getContext());
     return opName.hasInterface<InferTypeOpInterface>();
   }
@@ -298,7 +299,7 @@ bool OperationOp::hasTypeInference() {
 }
 
 bool OperationOp::mightHaveTypeInference() {
-  if (Optional<StringRef> rawOpName = getOpName()) {
+  if (std::optional<StringRef> rawOpName = getOpName()) {
     OperationName opName(*rawOpName, getContext());
     return opName.mightHaveInterface<InferTypeOpInterface>();
   }
@@ -381,7 +382,8 @@ LogicalResult PatternOp::verifyRegions() {
 }
 
 void PatternOp::build(OpBuilder &builder, OperationState &state,
-                      Optional<uint16_t> benefit, Optional<StringRef> name) {
+                      std::optional<uint16_t> benefit,
+                      std::optional<StringRef> name) {
   build(builder, state, builder.getI16IntegerAttr(benefit ? *benefit : 0),
         name ? builder.getStringAttr(*name) : StringAttr());
   state.regions[0]->emplaceBlock();
@@ -398,11 +400,44 @@ StringRef PatternOp::getDefaultDialect() {
 }
 
 //===----------------------------------------------------------------------===//
+// pdl::RangeOp
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseRangeType(OpAsmParser &p, TypeRange argumentTypes,
+                                  Type &resultType) {
+  // If arguments were provided, infer the result type from the argument list.
+  if (!argumentTypes.empty()) {
+    resultType = RangeType::get(getRangeElementTypeOrSelf(argumentTypes[0]));
+    return success();
+  }
+  // Otherwise, parse the type as a trailing type.
+  return p.parseColonType(resultType);
+}
+
+static void printRangeType(OpAsmPrinter &p, RangeOp op, TypeRange argumentTypes,
+                           Type resultType) {
+  if (argumentTypes.empty())
+    p << ": " << resultType;
+}
+
+LogicalResult RangeOp::verify() {
+  Type elementType = getType().getElementType();
+  for (Type operandType : getOperandTypes()) {
+    Type operandElementType = getRangeElementTypeOrSelf(operandType);
+    if (operandElementType != elementType) {
+      return emitOpError("expected operand to have element type ")
+             << elementType << ", but got " << operandElementType;
+    }
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // pdl::ReplaceOp
 //===----------------------------------------------------------------------===//
 
 LogicalResult ReplaceOp::verify() {
-  if (replOperation() && !replValues().empty())
+  if (getReplOperation() && !getReplValues().empty())
     return emitOpError() << "expected no replacement values to be provided"
                             " when the replacement operation is present";
   return success();
@@ -430,7 +465,7 @@ static void printResultsValueType(OpAsmPrinter &p, ResultsOp op,
 }
 
 LogicalResult ResultsOp::verify() {
-  if (!index() && getType().isa<pdl::ValueType>()) {
+  if (!getIndex() && getType().isa<pdl::ValueType>()) {
     return emitOpError() << "expected `pdl.range<value>` result type when "
                             "no index is specified, but got: "
                          << getType();
@@ -446,7 +481,7 @@ LogicalResult RewriteOp::verifyRegions() {
   Region &rewriteRegion = getBodyRegion();
 
   // Handle the case where the rewrite is external.
-  if (name()) {
+  if (getName()) {
     if (!rewriteRegion.empty()) {
       return emitOpError()
              << "expected rewrite region to be empty when rewrite is external";
@@ -461,7 +496,7 @@ LogicalResult RewriteOp::verifyRegions() {
   }
 
   // Check that no additional arguments were provided.
-  if (!externalArgs().empty()) {
+  if (!getExternalArgs().empty()) {
     return emitOpError() << "expected no external arguments when the "
                             "rewrite is specified inline";
   }

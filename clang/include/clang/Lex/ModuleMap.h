@@ -30,6 +30,7 @@
 #include "llvm/ADT/Twine.h"
 #include <ctime>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -152,6 +153,9 @@ public:
   /// Convert a header role to a kind.
   static Module::HeaderKind headerRoleToKind(ModuleHeaderRole Role);
 
+  /// Check if the header with the given role is a modular one.
+  static bool isModular(ModuleHeaderRole Role);
+
   /// A header that is known to reside within a given module,
   /// whether it was included or excluded.
   class KnownHeader {
@@ -176,7 +180,7 @@ public:
 
     /// Whether this header is available in the module.
     bool isAvailable() const {
-      return getModule()->isAvailable();
+      return getRole() != ExcludedHeader && getModule()->isAvailable();
     }
 
     /// Whether this header is accessible from the specified module.
@@ -330,7 +334,7 @@ private:
   /// \param NeedsFramework If M is not a framework but a missing header would
   ///        be found in case M was, set it to true. False otherwise.
   /// \return The resolved file, if any.
-  Optional<FileEntryRef>
+  OptionalFileEntryRef
   findHeader(Module *M, const Module::UnresolvedHeaderDirective &Header,
              SmallVectorImpl<char> &RelativePathName, bool &NeedsFramework);
 
@@ -463,7 +467,7 @@ public:
   /// provided, only headers with same size and modtime are resolved. If File
   /// is not set, all headers are resolved.
   void resolveHeaderDirectives(Module *Mod,
-                               llvm::Optional<const FileEntry *> File) const;
+                               std::optional<const FileEntry *> File) const;
 
   /// Reports errors if a module must not include a specific file.
   ///
@@ -561,11 +565,7 @@ public:
   /// Note that this also sets the current module to the newly-created module.
   ///
   /// \returns The newly-created module.
-  Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name,
-                                       Module *GlobalModule);
-
-  /// Create a header module from the specified list of headers.
-  Module *createHeaderModule(StringRef Name, ArrayRef<Module::Header> Headers);
+  Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name);
 
   /// Create a C++20 header unit.
   Module *createHeaderUnit(SourceLocation Loc, StringRef Name,
@@ -607,7 +607,7 @@ public:
   ///
   /// \returns The file entry for the module map file containing the given
   /// module, or nullptr if the module definition was inferred.
-  const FileEntry *getContainingModuleMapFile(const Module *Module) const;
+  OptionalFileEntryRef getContainingModuleMapFile(const Module *Module) const;
 
   /// Get the module map file that (along with the module name) uniquely
   /// identifies this module.
@@ -618,9 +618,18 @@ public:
   /// of inferred modules, returns the module map that allowed the inference
   /// (e.g. contained 'module *'). Otherwise, returns
   /// getContainingModuleMapFile().
-  const FileEntry *getModuleMapFileForUniquing(const Module *M) const;
+  OptionalFileEntryRef getModuleMapFileForUniquing(const Module *M) const;
 
   void setInferredModuleAllowedBy(Module *M, const FileEntry *ModMap);
+
+  /// Canonicalize \p Path in a manner suitable for a module map file. In
+  /// particular, this canonicalizes the parent directory separately from the
+  /// filename so that it does not affect header resolution relative to the
+  /// modulemap.
+  ///
+  /// \returns an error code if any filesystem operations failed. In this case
+  /// \p Path is not modified.
+  std::error_code canonicalizeModuleMapPath(SmallVectorImpl<char> &Path);
 
   /// Get any module map files other than getModuleMapFileForUniquing(M)
   /// that define submodules of a top-level module \p M. This is cheaper than
@@ -667,7 +676,7 @@ public:
 
   /// Sets the umbrella header of the given module to the given
   /// header.
-  void setUmbrellaHeader(Module *Mod, const FileEntry *UmbrellaHeader,
+  void setUmbrellaHeader(Module *Mod, FileEntryRef UmbrellaHeader,
                          const Twine &NameAsWritten,
                          const Twine &PathRelativeToRootModuleDirectory);
 
@@ -681,9 +690,6 @@ public:
   /// \param Role The role of the header wrt the module.
   void addHeader(Module *Mod, Module::Header Header,
                  ModuleHeaderRole Role, bool Imported = false);
-
-  /// Marks this header as being excluded from the given module.
-  void excludeHeader(Module *Mod, Module::Header Header);
 
   /// Parse the given module map file, and record any modules we
   /// encounter.
@@ -727,10 +733,10 @@ public:
   }
 
   /// Return a cached module load.
-  llvm::Optional<Module *> getCachedModuleLoad(const IdentifierInfo &II) {
+  std::optional<Module *> getCachedModuleLoad(const IdentifierInfo &II) {
     auto I = CachedModuleLoads.find(&II);
     if (I == CachedModuleLoads.end())
-      return None;
+      return std::nullopt;
     return I->second;
   }
 };

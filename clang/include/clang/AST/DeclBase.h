@@ -474,6 +474,9 @@ public:
 
   bool isInStdNamespace() const;
 
+  // Return true if this is a FileContext Decl.
+  bool isFileContextDecl() const;
+
   ASTContext &getASTContext() const LLVM_READONLY;
 
   /// Helper to get the language options from the ASTContext.
@@ -1574,10 +1577,14 @@ class DeclContext {
 
     /// Indicates whether this struct has had its field layout randomized.
     uint64_t IsRandomized : 1;
+
+    /// True if a valid hash is stored in ODRHash. This should shave off some
+    /// extra storage and prevent CXXRecordDecl to store unused bits.
+    uint64_t ODRHash : 26;
   };
 
   /// Number of non-inherited bits in RecordDeclBitfields.
-  enum { NumRecordDeclBits = 15 };
+  enum { NumRecordDeclBits = 41 };
 
   /// Stores the bits used by OMPDeclareReductionDecl.
   /// If modified NumOMPDeclareReductionDeclBits and the accessor
@@ -1905,6 +1912,10 @@ protected:
 
 public:
   ~DeclContext();
+
+  // For use when debugging; hasValidDeclKind() will always return true for
+  // a correctly constructed object within its lifetime.
+  bool hasValidDeclKind() const;
 
   Decl::Kind getDeclKind() const {
     return static_cast<Decl::Kind>(DeclContextBits.DeclKind);
@@ -2527,6 +2538,8 @@ public:
   static bool classof(const Decl *D);
   static bool classof(const DeclContext *D) { return true; }
 
+  void dumpAsDecl() const;
+  void dumpAsDecl(const ASTContext *Ctx) const;
   void dumpDeclContext() const;
   void dumpLookups() const;
   void dumpLookups(llvm::raw_ostream &OS, bool DumpDecls = false,

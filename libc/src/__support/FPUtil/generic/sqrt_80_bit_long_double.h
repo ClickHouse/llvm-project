@@ -29,12 +29,12 @@ inline void normalize(int &exponent, UInt128 &mantissa) {
 
 // if constexpr statement in sqrt.h still requires x86::sqrt to be declared
 // even when it's not used.
-static inline long double sqrt(long double x);
+LIBC_INLINE long double sqrt(long double x);
 
 // Correctly rounded SQRT for all rounding modes.
 // Shift-and-add algorithm.
 #if defined(SPECIAL_X86_LONG_DOUBLE)
-static inline long double sqrt(long double x) {
+LIBC_INLINE long double sqrt(long double x) {
   using UIntType = typename FPBits<long double>::UIntType;
   constexpr UIntType ONE = UIntType(1)
                            << int(MantissaWidth<long double>::VALUE);
@@ -44,7 +44,7 @@ static inline long double sqrt(long double x) {
   if (bits.is_inf_or_nan()) {
     if (bits.get_sign() && (bits.get_mantissa() == 0)) {
       // sqrt(-Inf) = NaN
-      return FPBits<long double>::build_nan(ONE >> 1);
+      return FPBits<long double>::build_quiet_nan(ONE >> 1);
     } else {
       // sqrt(NaN) = NaN
       // sqrt(+Inf) = +Inf
@@ -56,7 +56,7 @@ static inline long double sqrt(long double x) {
     return x;
   } else if (bits.get_sign()) {
     // sqrt( negative numbers ) = NaN
-    return FPBits<long double>::build_nan(ONE >> 1);
+    return FPBits<long double>::build_quiet_nan(ONE >> 1);
   } else {
     int x_exp = bits.get_exponent();
     UIntType x_mant = bits.get_mantissa();

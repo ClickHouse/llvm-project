@@ -18,6 +18,7 @@
 #include "lld/Common/Memory.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Support/Compiler.h"
 #include <tuple>
 
 namespace lld {
@@ -64,7 +65,7 @@ struct SymbolAux {
   uint32_t tlsGdIdx = -1;
 };
 
-extern SmallVector<SymbolAux, 0> symAux;
+LLVM_LIBRARY_VISIBILITY extern SmallVector<SymbolAux, 0> symAux;
 
 // The base class for real symbol classes.
 class Symbol {
@@ -344,6 +345,7 @@ public:
   }
   void overwrite(Symbol &sym) const {
     Symbol::overwrite(sym, DefinedKind);
+    sym.verdefIndex = -1;
     auto &s = static_cast<Defined &>(sym);
     s.value = value;
     s.size = size;
@@ -513,9 +515,6 @@ struct ElfSym {
   // __rel{,a}_iplt_{start,end} symbols.
   static Defined *relaIpltStart;
   static Defined *relaIpltEnd;
-
-  // __global_pointer$ for RISC-V.
-  static Defined *riscvGlobalPointer;
 
   // _TLS_MODULE_BASE_ on targets that support TLSDESC.
   static Defined *tlsModuleBase;

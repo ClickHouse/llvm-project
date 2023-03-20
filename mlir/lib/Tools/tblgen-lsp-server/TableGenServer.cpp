@@ -23,6 +23,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/TableGen/Parser.h"
 #include "llvm/TableGen/Record.h"
+#include <optional>
 
 using namespace mlir;
 
@@ -54,12 +55,12 @@ static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr, SMLoc loc,
 }
 
 /// Convert the given TableGen diagnostic to the LSP form.
-static Optional<lsp::Diagnostic>
+static std::optional<lsp::Diagnostic>
 getLspDiagnoticFromDiag(const llvm::SMDiagnostic &diag,
                         const lsp::URIForFile &uri) {
   auto *sourceMgr = const_cast<llvm::SourceMgr *>(diag.getSourceMgr());
   if (!sourceMgr || !diag.getLoc().isValid())
-    return llvm::None;
+    return std::nullopt;
 
   lsp::Diagnostic lspDiag;
   lspDiag.source = "tablegen";
@@ -71,7 +72,7 @@ getLspDiagnoticFromDiag(const llvm::SMDiagnostic &diag,
 
   // Skip diagnostics that weren't emitted within the main file.
   if (loc.uri != uri)
-    return llvm::None;
+    return std::nullopt;
 
   // Convert the severity for the diagnostic.
   switch (diag.getKind()) {
@@ -142,6 +143,7 @@ struct TableGenIndexSymbol {
   TableGenIndexSymbol(const llvm::RecordVal *value)
       : definition(value),
         defLoc(lsp::convertTokenLocToRange(value->getLoc())) {}
+  virtual ~TableGenIndexSymbol() = default;
 
   // The main definition of the symbol.
   PointerUnion<const llvm::Record *, const llvm::RecordVal *> definition;
@@ -156,6 +158,7 @@ struct TableGenIndexSymbol {
 struct TableGenRecordSymbol : public TableGenIndexSymbol {
   TableGenRecordSymbol(const llvm::Record *record)
       : TableGenIndexSymbol(record) {}
+  ~TableGenRecordSymbol() override = default;
 
   static bool classof(const TableGenIndexSymbol *symbol) {
     return symbol->definition.is<const llvm::Record *>();
@@ -171,6 +174,7 @@ struct TableGenRecordValSymbol : public TableGenIndexSymbol {
   TableGenRecordValSymbol(const llvm::Record *record,
                           const llvm::RecordVal *value)
       : TableGenIndexSymbol(value), record(record) {}
+  ~TableGenRecordValSymbol() override = default;
 
   static bool classof(const TableGenIndexSymbol *symbol) {
     return symbol->definition.is<const llvm::RecordVal *>();
@@ -241,6 +245,9 @@ private:
 } // namespace
 
 void TableGenIndex::initialize(const llvm::RecordKeeper &records) {
+  intervalMap.clear();
+  defToSymbol.clear();
+
   auto insertRef = [&](TableGenIndexSymbol *sym, SMRange refLoc,
                        bool isDef = false) {
     const char *startLoc = refLoc.Start.getPointer();
@@ -348,8 +355,8 @@ public:
   // Hover
   //===--------------------------------------------------------------------===//
 
-  Optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
-                                 const lsp::Position &hoverPos);
+  std::optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
+                                      const lsp::Position &hoverPos);
   lsp::Hover buildHoverForRecord(const llvm::Record *record,
                                  const SMRange &hoverRange);
   lsp::Hover buildHoverForTemplateArg(const llvm::Record *record,
@@ -512,7 +519,7 @@ void TableGenTextFile::getDocumentLinks(const lsp::URIForFile &uri,
 // TableGenTextFile: Hover
 //===----------------------------------------------------------------------===//
 
-Optional<lsp::Hover>
+std::optional<lsp::Hover>
 TableGenTextFile::findHover(const lsp::URIForFile &uri,
                             const lsp::Position &hoverPos) {
   // Check for a reference to an include.
@@ -525,7 +532,7 @@ TableGenTextFile::findHover(const lsp::URIForFile &uri,
   SMLoc posLoc = hoverPos.getAsSMLoc(sourceMgr);
   const TableGenIndexSymbol *symbol = index.lookup(posLoc, &hoverRange);
   if (!symbol)
-    return llvm::None;
+    return std::nullopt;
 
   // Build hover for a Record.
   if (auto *record = dyn_cast<TableGenRecordSymbol>(symbol))
@@ -576,7 +583,7 @@ lsp::Hover TableGenTextFile::buildHoverForRecord(const llvm::Record *record,
     printAndFormatField("description");
 
     // Check for documentation in the source file.
-    if (Optional<std::string> doc =
+    if (std::optional<std::string> doc =
             lsp::extractSourceDocComment(sourceMgr, record->getLoc().front())) {
       hoverOS << "\n" << *doc << "\n";
     }
@@ -611,7 +618,7 @@ lsp::Hover TableGenTextFile::buildHoverForField(const llvm::Record *record,
     hoverOS << "`\n***\n";
 
     // Check for documentation in the source file.
-    if (Optional<std::string> doc =
+    if (std::optional<std::string> doc =
             lsp::extractSourceDocComment(sourceMgr, value->getLoc())) {
       hoverOS << "\n" << *doc << "\n";
       hoverOS << "\n***\n";
@@ -621,7 +628,7 @@ lsp::Hover TableGenTextFile::buildHoverForField(const llvm::Record *record,
     // documentation.
     auto [baseRecord, baseValue] = getBaseValue(record, value);
     if (baseValue) {
-      if (Optional<std::string> doc =
+      if (std::optional<std::string> doc =
               lsp::extractSourceDocComment(sourceMgr, baseValue->getLoc())) {
         hoverOS << "\n *From `" << baseRecord->getName() << "`*:\n\n"
                 << *doc << "\n";
@@ -684,10 +691,11 @@ void lsp::TableGenServer::updateDocument(
     impl->files.erase(it);
 }
 
-Optional<int64_t> lsp::TableGenServer::removeDocument(const URIForFile &uri) {
+std::optional<int64_t>
+lsp::TableGenServer::removeDocument(const URIForFile &uri) {
   auto it = impl->files.find(uri.file());
   if (it == impl->files.end())
-    return llvm::None;
+    return std::nullopt;
 
   int64_t version = it->second->getVersion();
   impl->files.erase(it);
@@ -717,10 +725,11 @@ void lsp::TableGenServer::getDocumentLinks(
     return fileIt->second->getDocumentLinks(uri, documentLinks);
 }
 
-Optional<lsp::Hover> lsp::TableGenServer::findHover(const URIForFile &uri,
-                                                    const Position &hoverPos) {
+std::optional<lsp::Hover>
+lsp::TableGenServer::findHover(const URIForFile &uri,
+                               const Position &hoverPos) {
   auto fileIt = impl->files.find(uri.file());
   if (fileIt != impl->files.end())
     return fileIt->second->findHover(uri, hoverPos);
-  return llvm::None;
+  return std::nullopt;
 }
