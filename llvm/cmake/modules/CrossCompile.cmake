@@ -101,11 +101,11 @@ endfunction()
 function(build_native_tool target output_path_var)
   cmake_parse_arguments(ARG "" "" "DEPENDS" ${ARGN})
 
-  if(CMAKE_CONFIGURATION_TYPES)
-    set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/Release/bin/${target}")
-  else()
+  # if(CMAKE_CONFIGURATION_TYPES)
+  #   set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/Release/bin/${target}")
+  # else()
     set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/bin/${target}")
-  endif()
+  # endif()
   set(output_path ${output_path}${LLVM_HOST_EXECUTABLE_SUFFIX})
 
   llvm_ExternalProject_BuildCmd(build_cmd ${target} ${${PROJECT_NAME}_NATIVE_BUILD}
