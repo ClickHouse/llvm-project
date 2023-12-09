@@ -253,9 +253,7 @@ endif()
 
 # function checks
 check_symbol_exists(arc4random "stdlib.h" HAVE_DECL_ARC4RANDOM)
-find_package(Backtrace)
-set(HAVE_BACKTRACE ${Backtrace_FOUND})
-set(BACKTRACE_HEADER ${Backtrace_HEADER})
+set(HAVE_BACKTRACE 0)
 
 # Prevent check_symbol_exists from using API that is not supported for a given
 # deployment target.
