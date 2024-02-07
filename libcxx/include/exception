@@ -94,7 +94,7 @@ template <class E> void rethrow_if_nested(const E& e);
 #endif
 
 #ifdef STD_EXCEPTION_HAS_STACK_TRACE
-extern "C" int unw_backtrace(void **, int);
+extern "C" int backtrace(void **, int);
 #endif
 
 namespace std  // purposefully not using versioning namespace
@@ -131,7 +131,7 @@ private:
     int size = 0;
     void capture() _NOEXCEPT
     {
-        size = unw_backtrace(frames, capacity);
+        size = backtrace(frames, capacity);
     }
 #endif
 };
