@@ -7,8 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// See https://github.com/ClickHouse/ClickHouse/pull/58681
+#ifndef ENABLE_STD_REGEX
+// Disable std::regex by default, see https://github.com/ClickHouse/ClickHouse/pull/58681
 #error "<regex> is disabled. Use <Common/re2.h> instead"
+#endif
 
 #ifndef _LIBCPP_REGEX
 #define _LIBCPP_REGEX
