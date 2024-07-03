@@ -51,6 +51,10 @@ include(${LLVM_COMMON_CMAKE_UTILS}/Modules/LLVMVersion.cmake)
 
 set_directory_properties(PROPERTIES LLVM_VERSION_MAJOR "${LLVM_VERSION_MAJOR}")
 
+if (OMIT_HEAVY_DEBUG_SYMBOLS)
+  add_definitions(-g0) # Lower object size
+endif()
+
 if (NOT PACKAGE_VERSION)
   set(PACKAGE_VERSION
     "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}${LLVM_VERSION_SUFFIX}")
