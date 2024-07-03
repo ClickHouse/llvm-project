@@ -1184,11 +1184,13 @@ typedef __char32_t char32_t;
 #    define _LIBCPP_NO_SANITIZE(...)
 #  endif
 
+#ifndef _LIBCPP_INIT_PRIORITY_MAX
 #  if __has_attribute(__init_priority__)
 #    define _LIBCPP_INIT_PRIORITY_MAX __attribute__((__init_priority__(100)))
 #  else
 #    define _LIBCPP_INIT_PRIORITY_MAX
 #  endif
+#endif
 
 #  if __has_attribute(__format__)
 // The attribute uses 1-based indices for ordinary and static member functions.
