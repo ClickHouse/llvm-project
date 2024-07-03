@@ -76,8 +76,10 @@ function(llvm_create_cross_target project_name target_name toolchain buildtype)
   add_custom_command(OUTPUT ${${project_name}_${target_name}_BUILD}/CMakeCache.txt
     COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}"
         -DCMAKE_MAKE_PROGRAM="${CMAKE_MAKE_PROGRAM}"
-        -DCMAKE_C_COMPILER_LAUNCHER="${CMAKE_C_COMPILER_LAUNCHER}"
-        -DCMAKE_CXX_COMPILER_LAUNCHER="${CMAKE_CXX_COMPILER_LAUNCHER}"
+        # Commenting these two out, breaks build for non-x86
+        # https://productionresultssa3.blob.core.windows.net/actions-results/bcd93efb-9480-4635-86af-00b7649d4fac/workflow-job-run-1a4f17c4-e246-54f0-a62f-26076afa5c84/logs/job/job-logs.txt?rsct=text%2Fplain&se=2025-02-03T21%3A03%3A03Z&sig=o2byv6SQ6egm7cXawKZ21CXadLOev9mVaiXOG4U0Ajc%3D&ske=2025-02-04T08%3A20%3A19Z&skoid=ca7593d4-ee42-46cd-af88-8b886a2f84eb&sks=b&skt=2025-02-03T20%3A20%3A19Z&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skv=2025-01-05&sp=r&spr=https&sr=b&st=2025-02-03T20%3A52%3A58Z&sv=2025-01-05
+        # -DCMAKE_C_COMPILER_LAUNCHER="${CMAKE_C_COMPILER_LAUNCHER}"
+        # -DCMAKE_CXX_COMPILER_LAUNCHER="${CMAKE_CXX_COMPILER_LAUNCHER}"
         ${CROSS_TOOLCHAIN_FLAGS_${target_name}} ${CMAKE_CURRENT_SOURCE_DIR}
         ${CROSS_TOOLCHAIN_FLAGS_${project_name}_${target_name}}
         -DLLVM_TARGET_IS_CROSSCOMPILE_HOST=TRUE
@@ -106,11 +108,7 @@ function(llvm_create_cross_target project_name target_name toolchain buildtype)
 endfunction()
 
 function(get_native_tool_path target output_path_var)
-  if(CMAKE_CONFIGURATION_TYPES)
-    set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/Release/bin/${target}")
-  else()
-    set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/bin/${target}")
-  endif()
+  set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/bin/${target}")
   set(${output_path_var} ${output_path}${LLVM_HOST_EXECUTABLE_SUFFIX} PARENT_SCOPE)
 endfunction()
 
@@ -122,13 +120,8 @@ endfunction()
 function(build_native_tool target output_path_var)
   cmake_parse_arguments(ARG "" "" "DEPENDS" ${ARGN})
 
-  get_native_tool_path(${target} output_path)
-
-  # Make chain of preceding actions
-  if(CMAKE_GENERATOR MATCHES "Visual Studio")
-    get_property(host_targets GLOBAL PROPERTY ${PROJECT_NAME}_HOST_TARGETS)
-    set_property(GLOBAL APPEND PROPERTY ${PROJECT_NAME}_HOST_TARGETS ${output_path})
-  endif()
+  set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/bin/${target}")
+  set(output_path ${output_path}${LLVM_HOST_EXECUTABLE_SUFFIX})
 
   llvm_ExternalProject_BuildCmd(build_cmd ${target} ${${PROJECT_NAME}_NATIVE_BUILD}
                                 CONFIGURATION Release)

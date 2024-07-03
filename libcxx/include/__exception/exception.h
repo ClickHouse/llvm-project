@@ -21,6 +21,10 @@
 #  pragma GCC system_header
 #endif
 
+#ifdef STD_EXCEPTION_HAS_STACK_TRACE
+extern "C" int unw_backtrace(void **, int);
+#endif
+
 namespace std { // purposefully not using versioning namespace
 
 #if defined(_LIBCPP_ABI_VCRUNTIME) && (!defined(_HAS_EXCEPTIONS) || _HAS_EXCEPTIONS != 0)
@@ -71,12 +75,37 @@ public:
 
 class _LIBCPP_EXPORTED_FROM_ABI exception {
 public:
-  _LIBCPP_HIDE_FROM_ABI exception() _NOEXCEPT {}
+  _LIBCPP_HIDE_FROM_ABI exception() _NOEXCEPT
+  {
+#ifdef STD_EXCEPTION_HAS_STACK_TRACE
+    capture();
+#endif
+  }
   _LIBCPP_HIDE_FROM_ABI exception(const exception&) _NOEXCEPT            = default;
   _LIBCPP_HIDE_FROM_ABI exception& operator=(const exception&) _NOEXCEPT = default;
 
   virtual ~exception() _NOEXCEPT;
   virtual const char* what() const _NOEXCEPT;
+#ifdef STD_EXCEPTION_HAS_STACK_TRACE
+    /// This is ClickHouse patch to libc++. It breaks ABI, so you cannot link your code with any C++ library
+    /// that has any std::exception-related symbols exported and was built without this patch.
+    void ** const get_stack_trace_frames() const _NOEXCEPT { return const_cast<void**>(frames); }
+    int get_stack_trace_size() const _NOEXCEPT { return size; }
+    void set_stack_trace(void ** frames_, int size_) _NOEXCEPT
+    {
+        size = size_;
+        for (int i = 0; i < size; ++i)
+            frames[i] = frames_[i];
+    }
+private:
+    static constexpr int capacity = 32;
+    void * frames[capacity];
+    int size = 0;
+    void capture() _NOEXCEPT
+    {
+        size = unw_backtrace(frames, capacity);
+    }
+#endif
 };
 
 class _LIBCPP_EXPORTED_FROM_ABI bad_exception : public exception {
