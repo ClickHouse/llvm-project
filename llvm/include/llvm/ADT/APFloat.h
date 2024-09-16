@@ -631,6 +631,7 @@ class DoubleAPFloat final : public APFloatBase {
                           DoubleAPFloat &Out, roundingMode RM);
 
 public:
+  ~DoubleAPFloat();
   DoubleAPFloat(const fltSemantics &S);
   DoubleAPFloat(const fltSemantics &S, uninitializedTag);
   DoubleAPFloat(const fltSemantics &S, integerPart);
@@ -651,10 +652,10 @@ public:
 
   bool needsCleanup() const { return Floats != nullptr; }
 
-  APFloat &getFirst() { return Floats[0]; }
-  const APFloat &getFirst() const { return Floats[0]; }
-  APFloat &getSecond() { return Floats[1]; }
-  const APFloat &getSecond() const { return Floats[1]; }
+  APFloat &getFirst();
+  const APFloat &getFirst() const;
+  APFloat &getSecond();
+  const APFloat &getSecond() const;
 
   opStatus add(const DoubleAPFloat &RHS, roundingMode RM);
   opStatus subtract(const DoubleAPFloat &RHS, roundingMode RM);

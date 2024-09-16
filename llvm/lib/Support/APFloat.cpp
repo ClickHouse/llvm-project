@@ -752,6 +752,14 @@ writeSignedDecimal (char *dst, int value)
 }
 
 namespace detail {
+
+DoubleAPFloat::~DoubleAPFloat() = default;
+
+APFloat &DoubleAPFloat::getFirst() { return Floats[0]; }
+const APFloat &DoubleAPFloat::getFirst() const { return Floats[0]; }
+APFloat &DoubleAPFloat::getSecond() { return Floats[1]; }
+const APFloat &DoubleAPFloat::getSecond() const { return Floats[1]; }
+
 /* Constructors.  */
 void IEEEFloat::initialize(const fltSemantics *ourSemantics) {
   unsigned int count;
