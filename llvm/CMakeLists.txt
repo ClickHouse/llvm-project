@@ -15,6 +15,10 @@ if(NOT LLVM_NO_INSTALL_NAME_DIR_FOR_BUILD_TREE)
   set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 endif()
 
+if (OMIT_HEAVY_DEBUG_SYMBOLS)
+  add_definitions(-g0) # Lower object size
+endif()
+
 if(NOT DEFINED LLVM_VERSION_MAJOR)
   set(LLVM_VERSION_MAJOR 18)
 endif()
