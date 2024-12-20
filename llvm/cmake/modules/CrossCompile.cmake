@@ -100,11 +100,7 @@ function(llvm_create_cross_target project_name target_name toolchain buildtype)
 endfunction()
 
 function(get_native_tool_path target output_path_var)
-  if(CMAKE_CONFIGURATION_TYPES)
-    set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/Release/bin/${target}")
-  else()
-    set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/bin/${target}")
-  endif()
+  set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/bin/${target}")
   set(${output_path_var} ${output_path}${LLVM_HOST_EXECUTABLE_SUFFIX} PARENT_SCOPE)
 endfunction()
 
@@ -116,13 +112,8 @@ endfunction()
 function(build_native_tool target output_path_var)
   cmake_parse_arguments(ARG "" "" "DEPENDS" ${ARGN})
 
-  get_native_tool_path(${target} output_path)
-
-  # Make chain of preceding actions
-  if(CMAKE_GENERATOR MATCHES "Visual Studio")
-    get_property(host_targets GLOBAL PROPERTY ${PROJECT_NAME}_HOST_TARGETS)
-    set_property(GLOBAL APPEND PROPERTY ${PROJECT_NAME}_HOST_TARGETS ${output_path})
-  endif()
+  set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/bin/${target}")
+  set(output_path ${output_path}${LLVM_HOST_EXECUTABLE_SUFFIX})
 
   llvm_ExternalProject_BuildCmd(build_cmd ${target} ${${PROJECT_NAME}_NATIVE_BUILD}
                                 CONFIGURATION Release)
