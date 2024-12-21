@@ -20,17 +20,8 @@
 #define _LIBCPP_ABI_UNSTABLE
 #define _LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS
 #define _LIBCPP_ABI_NAMESPACE __1
-
-/*
- * ClickHouse specific options.
- * Unstable ABI to provide better performance
- * Availability annotations are not supported.
- * _LIBCPP_ABI_NAMESPACE to preserve namespace compatibility
- */
-#define _LIBCPP_ABI_VERSION 999
-#define _LIBCPP_ABI_UNSTABLE
-#define _LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS
-#define _LIBCPP_ABI_NAMESPACE __1
+#define _LIBCPP_HARDENING_MODE_DEFAULT 2
+#define _LIBCPP_PSTL_CPU_BACKEND_SERIAL 1
 
 #ifndef _LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER
 #  pragma GCC system_header
