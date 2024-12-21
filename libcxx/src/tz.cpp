@@ -45,7 +45,7 @@ _LIBCPP_WEAK string_view __libcpp_tzdb_directory() {
 #if defined(__linux__)
   return "/usr/share/zoneinfo/";
 #else
-#  error "unknown path to the IANA Time Zone Database"
+  std::__throw_runtime_error("Unable to obtain a path to the tzdb directory on non-Linux OS.");
 #endif
 }
 
