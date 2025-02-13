@@ -189,7 +189,7 @@ static cl::opt<bool>
                        cl::desc("Run Partial inlinining pass"));
 
 static cl::opt<bool> ExtraVectorizerPasses(
-    "extra-vectorizer-passes", cl::init(false), cl::Hidden,
+    "extra-vectorizer-passes", cl::init(true), cl::Hidden,
     cl::desc("Run cleanup optimization passes after vectorization"));
 
 static cl::opt<bool> RunNewGVN("enable-newgvn", cl::init(false), cl::Hidden,
