@@ -24,7 +24,19 @@
 #else
 
 // TODO(hardening): use `__builtin_verbose_trap(message)` once that becomes available.
-#  define _LIBCPP_ASSERTION_HANDLER(message) ((void)message, __builtin_trap())
+/// -------------------------------------------------
+/// ClickHouse-specific patch
+/// -------------------------------------------------
+/// __builtin_trap has two problems:
+/// 1. it raises SIGILL which is confusing in itself
+/// 2. SIGILL is registered with ClickHouse's own signal handler. It prints the callstack to stderror but
+///    the original error message gets lost.
+///
+/// Instead, call _LIBCPP_VERBOSE_ABORT which allows to implement our own error handling
+///
+/// #  define _LIBCPP_ASSERTION_HANDLER(message) ((void)message, __builtin_trap())
+#  define _LIBCPP_ASSERTION_HANDLER(message) _LIBCPP_VERBOSE_ABORT("%s", message)
+/// -------------------------------------------------
 
 #endif // _LIBCPP_HARDENING_MODE == _LIBCPP_HARDENING_MODE_DEBUG
 

@@ -44,6 +44,8 @@ _LIBCPP_END_EXPLICIT_ABI_ANNOTATIONS
 void __use(const char*, ...);
 #    define _LIBCPP_VERBOSE_ABORT(...) (decltype(::std::__use(__VA_ARGS__))(), __builtin_abort())
 #  else
+/// __libcpp_verbose_abort is implemented in base/base/libcpp_verbose_abort.cpp, see
+/// https://prereleases.llvm.org/16.0.0/rc3/projects/libcxx/docs/UsingLibcxx.html#enabling-the-safe-libc-mode
 #    define _LIBCPP_VERBOSE_ABORT(...) ::std::__libcpp_verbose_abort(__VA_ARGS__)
 #  endif
 
