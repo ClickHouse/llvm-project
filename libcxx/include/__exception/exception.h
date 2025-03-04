@@ -22,7 +22,11 @@
 #endif
 
 #ifdef STD_EXCEPTION_HAS_STACK_TRACE
+#if defined(OS_DARWIN)
+extern "C" int backtrace(void **, int);
+#else
 extern "C" int unw_backtrace(void **, int);
+#endif
 #endif
 
 namespace std { // purposefully not using versioning namespace
@@ -103,7 +107,11 @@ private:
     int size = 0;
     void capture() _NOEXCEPT
     {
+#if defined(OS_DARWIN)
+        size = backtrace(frames, capacity);
+#else
         size = unw_backtrace(frames, capacity);
+#endif
     }
 #endif
 };
