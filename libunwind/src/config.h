@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <__libunwind_config.h>
 
@@ -155,6 +156,25 @@
 #define _LIBUNWIND_REMEMBER_CLEANUP_NEEDED
 #endif
 
+#ifndef fileno
+int fileno(FILE *stream);
+#endif
+
+/// Wrapper for fprintf, to avoid using if from signal handler.
+/// Function snprintf is not signal-safe as well, but hopefully it will be fine.
+/// Don't care about checking result of write() here.
+#define _FPRINTF_WRAPPER(file, msg, ...) \
+  do { \
+    char buf[128]; \
+    int num_bytes = snprintf(buf, 128, msg __VA_OPT__(,) __VA_ARGS__); \
+    int fd = fileno(file); \
+    if (num_bytes > 0 && fd >= 0) \
+    { \
+      num_bytes = num_bytes < 128 ? num_bytes : 127; \
+      write(fd, buf, num_bytes); \
+    } \
+  } while(0);
+
 #if defined(NDEBUG) && defined(_LIBUNWIND_IS_BAREMETAL)
 #define _LIBUNWIND_ABORT(msg)                                                  \
   do {                                                                         \
@@ -163,7 +183,7 @@
 #else
 #define _LIBUNWIND_ABORT(msg)                                                  \
   do {                                                                         \
-    fprintf(stderr, "libunwind: %s - %s\n", __func__, msg);                    \
+    _FPRINTF_WRAPPER(stderr, "libunwind: %s - %s\n", __func__, msg);           \
     fflush(stderr);                                                            \
     abort();                                                                   \
   } while (0)
@@ -174,11 +194,11 @@
 #define _LIBUNWIND_LOG(msg, ...)
 #else
 #define _LIBUNWIND_LOG0(msg) do {                                              \
-    fprintf(stderr, "libunwind: " msg "\n");                                   \
+    _FPRINTF_WRAPPER(stderr, "libunwind: " msg "\n");                         \
     fflush(stderr);                                                            \
   } while (0)
 #define _LIBUNWIND_LOG(msg, ...) do {                                          \
-    fprintf(stderr, "libunwind: " msg "\n", __VA_ARGS__);                      \
+    _FPRINTF_WRAPPER(stderr, "libunwind: " msg "\n", __VA_ARGS__);             \
     fflush(stderr);                                                            \
   } while (0)
 #endif
@@ -228,7 +248,7 @@
   #define _LIBUNWIND_TRACE_DWARF(...)                                          \
     do {                                                                       \
       if (logDWARF())                                                          \
-        fprintf(stderr, __VA_ARGS__);                                          \
+        _FPRINTF_WRAPPER(stderr, __VA_ARGS__);                                 \
     } while (0)
 #endif
 

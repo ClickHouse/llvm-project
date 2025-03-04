@@ -33,7 +33,9 @@
 #if defined(_LIBUNWIND_TARGET_LINUX) &&                                        \
     (defined(_LIBUNWIND_TARGET_AARCH64) ||                                     \
      defined(_LIBUNWIND_TARGET_LOONGARCH) ||                                   \
-     defined(_LIBUNWIND_TARGET_RISCV) || defined(_LIBUNWIND_TARGET_S390X))
+     defined(_LIBUNWIND_TARGET_RISCV) ||                                       \
+     defined(_LIBUNWIND_TARGET_S390X) ||                                       \
+     defined(_LIBUNWIND_TARGET_X86_64))
 #include <errno.h>
 #include <signal.h>
 #include <sys/syscall.h>
@@ -180,6 +182,7 @@ template <typename R>
 typename DwarfFDECache<A>::pint_t
 DwarfFDECache<A>::findFDE(pint_t mh, typename R::link_hardened_reg_arg_t pc) {
   pint_t result = 0;
+#if !defined(_LIBUNWIND_NO_HEAP)
   _LIBUNWIND_LOG_IF_FALSE(_lock.lock_shared());
   for (entry *p = _buffer; p < _bufferUsed; ++p) {
     if ((mh == p->mh) || (mh == kSearchAll)) {
@@ -190,6 +193,7 @@ DwarfFDECache<A>::findFDE(pint_t mh, typename R::link_hardened_reg_arg_t pc) {
     }
   }
   _LIBUNWIND_LOG_IF_FALSE(_lock.unlock_shared());
+#endif
   return result;
 }
 
@@ -227,6 +231,7 @@ void DwarfFDECache<A>::add(pint_t mh, pint_t ip_start, pint_t ip_end,
 
 template <typename A>
 void DwarfFDECache<A>::removeAllIn(pint_t mh) {
+#if !defined(_LIBUNWIND_NO_HEAP)
   _LIBUNWIND_LOG_IF_FALSE(_lock.lock());
   entry *d = _buffer;
   for (const entry *s = _buffer; s < _bufferUsed; ++s) {
@@ -238,6 +243,7 @@ void DwarfFDECache<A>::removeAllIn(pint_t mh) {
   }
   _bufferUsed = d;
   _LIBUNWIND_LOG_IF_FALSE(_lock.unlock());
+#endif
 }
 
 #ifdef __APPLE__
@@ -250,11 +256,13 @@ void DwarfFDECache<A>::dyldUnloadHook(const struct mach_header *mh, intptr_t ) {
 template <typename A>
 void DwarfFDECache<A>::iterateCacheEntries(void (*func)(
     unw_word_t ip_start, unw_word_t ip_end, unw_word_t fde, unw_word_t mh)) {
+#if !defined(_LIBUNWIND_NO_HEAP)
   _LIBUNWIND_LOG_IF_FALSE(_lock.lock());
   for (entry *p = _buffer; p < _bufferUsed; ++p) {
     (*func)(p->ip_start, p->ip_end, p->fde, p->mh);
   }
   _LIBUNWIND_LOG_IF_FALSE(_lock.unlock());
+#endif
 }
 #endif // defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND)
 
@@ -1049,6 +1057,10 @@ private:
   bool setInfoForSigReturn(Registers_s390x &);
   int stepThroughSigReturn(Registers_s390x &);
 #endif
+#if defined(_LIBUNWIND_TARGET_X86_64)
+  bool setInfoForSigReturn(Registers_x86_64 &);
+  int stepThroughSigReturn(Registers_x86_64 &);
+#endif
   template <typename Registers> bool setInfoForSigReturn(Registers &) {
     return false;
   }
@@ -1831,12 +1843,27 @@ bool UnwindCursor<A, R>::getInfoFromDwarfSection(
       foundInCache = foundFDE;
     }
   }
-  if (!foundFDE) {
+
+  /** This code path is disabled, because it is prohibitively slow
+    * when we cannot use the cache (_LIBUNWIND_NO_HEAP).
+    * The "DWARF index" is typically present, so we should not get here.
+    *
+    * But it is possible that the FDE is not found,
+    * when some assembly functions are not properly annotated
+    * (with .cfi_startproc, .cfi_endproc, etc).
+    * This is the case when building with Musl instead of GLibC,
+    * for example see the function src/thread/x86_64/clone.s in Musl
+    * and sysdeps/unix/sysv/linux/x86_64/clone.S in GLibC.
+    *
+    * But in this case, the FDE will not be found anyway.
+    */
+/*  if (!foundFDE) {
     // Still not found, do full scan of __eh_frame section.
-    foundFDE = CFI_Parser<A>::template findFDE<R>(
-        _addressSpace, pc, sects.dwarf_section, sects.dwarf_section_length, 0,
-        &fdeInfo, &cieInfo);
-  }
+    foundFDE = CFI_Parser<A>::findFDE(_addressSpace, pc, sects.dwarf_section,
+                                      sects.dwarf_section_length, 0,
+                                      &fdeInfo, &cieInfo);
+  }*/
+
   if (foundFDE) {
     if (getInfoFromFdeCie(fdeInfo, cieInfo, pc, sects.dso_base)) {
       // Add to cache (to make next lookup faster) if we had no hint
@@ -2877,15 +2904,6 @@ void UnwindCursor<A, R>::setInfoBasedOnIPRegister(bool isReturnAddress) {
     --pc;
 #endif
 
-#if !(defined(_LIBUNWIND_SUPPORT_SEH_UNWIND) && defined(_WIN32)) &&            \
-    !defined(_LIBUNWIND_SUPPORT_TBTAB_UNWIND)
-  // In case of this is frame of signal handler, the IP saved in the signal
-  // handler points to first non-executed instruction, while FDE/CIE expects IP
-  // to be after the first non-executed instruction.
-  if (_isSignalFrame)
-    ++pc;
-#endif
-
   // Ask address space object to find unwind sections for this pc.
   UnwindInfoSections sects;
   if (_addressSpace.template findUnwindSections<R>(pc, sects)) {
@@ -3057,7 +3075,15 @@ int UnwindCursor<A, R>::stepThroughSigReturn(Registers_arm64 &) {
     _registers.setRegister(UNW_AARCH64_X0 + i, value);
   }
   _registers.setSP(_addressSpace.get64(sigctx + kOffsetSp));
-  _registers.setIP(_addressSpace.get64(sigctx + kOffsetPc));
+
+  // The +1 story is the same as in DwarfInstructions::stepWithDwarf()
+  // (search for "returnAddress + cieInfo.isSignalFrame" or "Return address points to the next instruction").
+  // This is probably not the right place for this because this function is not necessarily used
+  // with DWARF. Need to research whether the other unwind methods have the same +-1 situation or
+  // are off by one.
+  pint_t returnAddress = _addressSpace.get64(sigctx + kOffsetPc);
+  _registers.setIP(returnAddress + 1);
+
   _isSignalFrame = true;
   return UNW_STEP_SUCCESS;
 }
@@ -3276,6 +3302,97 @@ int UnwindCursor<A, R>::stepThroughSigReturn(Registers_s390x &) {
 #endif // defined(_LIBUNWIND_CHECK_LINUX_SIGRETURN) &&
        // defined(_LIBUNWIND_TARGET_S390X)
 
+#if defined(_LIBUNWIND_CHECK_LINUX_SIGRETURN) &&                               \
+    defined(_LIBUNWIND_TARGET_X86_64)
+template <typename A, typename R>
+bool UnwindCursor<A, R>::setInfoForSigReturn(Registers_x86_64 &) {
+  // Look for the sigreturn trampoline. The trampoline's body is two
+  // specific instructions (see below). Typically the trampoline comes from the
+  // vDSO or from libc.
+  //
+  // This special code path is a fallback that is only used if the trampoline
+  // lacks proper (e.g. DWARF) unwind info.
+  const uint8_t amd64_linux_sigtramp_code[9] = {
+    0x48, 0xc7, 0xc0, 0x0f, 0x00, 0x00, 0x00, // mov rax, 15
+    0x0f, 0x05                                // syscall
+  };
+  const size_t code_size = sizeof(amd64_linux_sigtramp_code);
+
+  // The PC might contain an invalid address if the unwind info is bad, so
+  // directly accessing it could cause a SIGSEGV.
+  unw_word_t pc = static_cast<pint_t>(this->getReg(UNW_REG_IP));
+  if (!isReadableAddr(pc))
+    return false;
+  // If near page boundary, check the next page too.
+  if (((pc + code_size - 1) & 4095) != (pc & 4095) && !isReadableAddr(pc + code_size - 1))
+    return false;
+
+  const uint8_t *pc_ptr = reinterpret_cast<const uint8_t *>(pc);
+  if (memcmp(pc_ptr, amd64_linux_sigtramp_code, code_size))
+    return false;
+
+  _info = {};
+  _info.start_ip = pc;
+  _info.end_ip = pc + code_size;
+  _isSigReturn = true;
+
+  return true;
+}
+
+template <typename A, typename R>
+int UnwindCursor<A, R>::stepThroughSigReturn(Registers_x86_64 &) {
+  // In the signal trampoline frame, sp points to ucontext:
+  //   struct ucontext {
+  //     unsigned long     uc_flags;
+  //     struct ucontext  *uc_link;
+  //     stack_t           uc_stack; // 24 bytes
+  //     struct sigcontext uc_mcontext;
+  //     ...
+  //   };
+  const pint_t kOffsetSpToSigcontext = (8 + 8 + 24);
+  pint_t sigctx = _registers.getSP() + kOffsetSpToSigcontext;
+
+  // UNW_X86_64_* -> field in struct sigcontext_64.
+  //   struct sigcontext_64 {
+  //     __u64 r8;  // 0
+  //     __u64 r9;  // 1
+  //     __u64 r10; // 2
+  //     __u64 r11; // 3
+  //     __u64 r12; // 4
+  //     __u64 r13; // 5
+  //     __u64 r14; // 6
+  //     __u64 r15; // 7
+  //     __u64 di;  // 8
+  //     __u64 si;  // 9
+  //     __u64 bp;  // 10
+  //     __u64 bx;  // 11
+  //     __u64 dx;  // 12
+  //     __u64 ax;  // 13
+  //     __u64 cx;  // 14
+  //     __u64 sp;  // 15
+  //     __u64 ip;  // 16
+  //     ...
+  //   };
+  const size_t idx_map[17] = {13, 12, 14, 11, 9, 8, 10, 15, 0, 1, 2, 3, 4, 5, 6, 7, 16};
+
+  for (int i = 0; i < 17; ++i) {
+    uint64_t value = _addressSpace.get64(sigctx + idx_map[i] * 8);
+    _registers.setRegister(i, value);
+  }
+
+  // The +1 story is the same as in DwarfInstructions::stepWithDwarf()
+  // (search for "returnAddress + cieInfo.isSignalFrame" or "Return address points to the next instruction").
+  // This is probably not the right place for this because this function is not necessarily used
+  // with DWARF. Need to research whether the other unwind methods have the same +-1 situation or
+  // are off by one.
+  _registers.setIP(_registers.getIP() + 1);
+
+  _isSignalFrame = true;
+  return UNW_STEP_SUCCESS;
+}
+#endif // defined(_LIBUNWIND_CHECK_LINUX_SIGRETURN) &&
+       // defined(_LIBUNWIND_TARGET_X86_64)
+
 #if defined(_LIBUNWIND_CHECK_HAIKU_SIGRETURN)
 template <typename A, typename R>
 bool UnwindCursor<A, R>::setInfoForSigReturn() {
@@ -3372,6 +3489,9 @@ template <typename A, typename R> int UnwindCursor<A, R>::step(bool stage2) {
   if (_unwindInfoMissing)
     return UNW_STEP_END;
 
+  unw_word_t previousIP = getReg(UNW_REG_IP);
+  unw_word_t previousSP = getReg(UNW_REG_SP);
+
   // Use unwinding info to modify register set as if function returned.
   int result;
 #if defined(_LIBUNWIND_CHECK_LINUX_SIGRETURN) ||                               \
@@ -3401,6 +3521,14 @@ template <typename A, typename R> int UnwindCursor<A, R>::step(bool stage2) {
 
   // update info based on new PC
   if (result == UNW_STEP_SUCCESS) {
+    // Detect cycles of length 1. In particular this happens in musl's
+    // __clone(), which has incorrect DWARF unwind information.
+    // We don't check all registers, so it's not strictly guaranteed that
+    // unwinding would be stuck in a cycle, but seems like a reasonable
+    // heuristic.
+    if (getReg(UNW_REG_SP) == previousSP && getReg(UNW_REG_IP) == previousIP)
+      return UNW_EBADFRAME;
+
     this->setInfoBasedOnIPRegister(true);
     if (_unwindInfoMissing)
       return UNW_STEP_END;
@@ -3411,10 +3539,11 @@ template <typename A, typename R> int UnwindCursor<A, R>::step(bool stage2) {
 
 template <typename A, typename R>
 void UnwindCursor<A, R>::getInfo(unw_proc_info_t *info) {
-  if (_unwindInfoMissing)
-    memset(static_cast<void *>(info), 0, sizeof(*info));
-  else
-    *info = _info;
+  /// TODO: Revert after disable backtrace inteception in asan
+  // if (_unwindInfoMissing)
+  //   memset(static_cast<void *>(info), 0, sizeof(*info));
+  // else
+  *info = _info;
 }
 
 template <typename A, typename R>

@@ -103,8 +103,10 @@ public:
 
     // When saving registers, this data structure is lazily initialized.
     PrologInfo(InitializeTime IT = InitializeTime::kNormal) {
-      if (IT == InitializeTime::kNormal)
+      if (IT == InitializeTime::kNormal) {
         memset(this, 0, sizeof(*this));
+        cfaRegister = (uint32_t)(-1);
+      }
     }
     void checkSaveRegister(uint64_t reg, PrologInfo &initialState) {
       if (!savedRegisters[reg].initialStateSaved) {
@@ -493,7 +495,14 @@ bool CFI_Parser<A>::parseFDEInstructions(
                            ")\n",
                            static_cast<uint64_t>(instructionsEnd));
 
-    // see DWARF Spec, section 6.4.2 for details on unwind opcodes
+    // see DWARF Spec, section 6.4.2 for details on unwind opcodes;
+    //
+    // Note that we're looking for the PrologInfo for address `codeOffset - 1`,
+    // hence '<' instead of '<=" in `codeOffset < pcoffset`
+    // (compare to DWARF Spec section 6.4.3 "Call Frame Instruction Usage").
+    // The -1 accounts for the fact that function return address points to the
+    // next instruction *after* the `call` instruction, while control is
+    // logically "inside" the `call` instruction.
     while ((p < instructionsEnd) && (codeOffset < pcoffset)) {
       uint64_t reg;
       uint64_t reg2;
@@ -654,7 +663,7 @@ bool CFI_Parser<A>::parseFDEInstructions(
                                results->cfaRegisterOffset);
         break;
       case DW_CFA_def_cfa_expression:
-        results->cfaRegister = 0;
+        results->cfaRegister = (uint32_t)(-1);
         results->cfaExpression = (int64_t)p;
         length = addressSpace.getULEB128(p, instructionsEnd);
         assert(length < static_cast<pint_t>(~0) && "pointer overflow");
