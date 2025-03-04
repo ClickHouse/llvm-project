@@ -64,7 +64,7 @@ private:
 
   static pint_t getCFA(A &addressSpace, const PrologInfo &prolog,
                        const R &registers) {
-    if (prolog.cfaRegister != 0)
+    if (prolog.cfaRegister != (uint32_t)(-1))
       return (pint_t)((sint_t)registers.getRegister((int)prolog.cfaRegister) +
              prolog.cfaRegisterOffset);
     if (prolog.cfaExpression != 0)
@@ -293,17 +293,32 @@ int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pint_t pc,
 #if !defined(_LIBUNWIND_IS_NATIVE_ONLY)
         return UNW_ECROSSRASIGNING;
 #else
-        register unsigned long long x17 __asm("x17") = returnAddress;
-        register unsigned long long x16 __asm("x16") = cfa;
-
         // These are the autia1716/autib1716 instructions. The hint instructions
         // are used here as gcc does not assemble autia1716/autib1716 for pre
         // armv8.3a targets.
+
         if (cieInfo.addressesSignedWithBKey)
-          asm("hint 0xe" : "+r"(x17) : "r"(x16)); // autib1716
+        {
+            asm volatile(
+                "mov x17, %x0;"
+                "mov x16, %x1;"
+                "hint 0xe;" // autib1716
+                "mov %0, x17"
+                : "+r"(returnAddress)
+                : "r"(cfa)
+                : "x16", "x17");
+        }
         else
-          asm("hint 0xc" : "+r"(x17) : "r"(x16)); // autia1716
-        returnAddress = x17;
+        {
+            asm volatile(
+                "mov x17, %x0;"
+                "mov x16, %x1;"
+                "hint 0xc;" // autia1716
+                "mov %0, x17"
+                : "+r"(returnAddress)
+                : "r"(cfa)
+                : "x16", "x17");
+        }
 #endif
       }
 #endif
@@ -364,8 +379,16 @@ int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pint_t pc,
 #endif
 
       // Return address is address after call site instruction, so setting IP to
-      // that does simulates a return.
-      newRegisters.setIP(returnAddress);
+      // that simulates a return.
+      //
+      // The +-1 situation is subtle.
+      // Return address points to the next instruction after the `call`
+      // instruction, but logically we're "inside" the call instruction, and
+      // FDEs are constructed accordingly.
+      // So our FDE parsing implicitly subtracts 1 from the address.
+      // But for signal return, there's no `call` instruction, and
+      // subtracting 1 would be incorrect. So we add 1 here to compensate.
+      newRegisters.setIP(returnAddress + cieInfo.isSignalFrame);
 
       // Simulate the step by replacing the register set with the new ones.
       registers = newRegisters;
