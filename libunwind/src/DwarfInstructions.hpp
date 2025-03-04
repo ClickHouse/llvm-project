@@ -64,7 +64,7 @@ private:
 
   static pint_t getCFA(A &addressSpace, const PrologInfo &prolog,
                        const R &registers) {
-    if (prolog.cfaRegister != 0)
+    if (prolog.cfaRegister != (uint32_t)(-1))
       return (pint_t)((sint_t)registers.getRegister((int)prolog.cfaRegister) +
              prolog.cfaRegisterOffset);
     if (prolog.cfaExpression != 0)
@@ -399,8 +399,16 @@ int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pint_t pc,
 #endif
 
       // Return address is address after call site instruction, so setting IP to
-      // that does simulates a return.
-      newRegisters.setIP(returnAddress);
+      // that simulates a return.
+      //
+      // The +-1 situation is subtle.
+      // Return address points to the next instruction after the `call`
+      // instruction, but logically we're "inside" the call instruction, and
+      // FDEs are constructed accordingly.
+      // So our FDE parsing implicitly subtracts 1 from the address.
+      // But for signal return, there's no `call` instruction, and
+      // subtracting 1 would be incorrect. So we add 1 here to compensate.
+      newRegisters.setIP(returnAddress + cieInfo.isSignalFrame);
 
       // Simulate the step by replacing the register set with the new ones.
       registers = newRegisters;
