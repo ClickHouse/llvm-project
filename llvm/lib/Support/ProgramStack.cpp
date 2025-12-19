@@ -18,8 +18,9 @@
 # include <intrin.h>  // for _AddressOfReturnAddress
 #endif
 
-#ifndef LLVM_HAS_SPLIT_STACKS
+#ifdef LLVM_HAS_SPLIT_STACKS
 # include "llvm/Support/thread.h"
+# include <stdlib.h> // for malloc
 #endif
 
 using namespace llvm;
