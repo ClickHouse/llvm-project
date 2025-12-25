@@ -1366,7 +1366,7 @@ public:
   template <typename Fn> void match(Fn F) const { F(Name, Params, Requires); }
 
   void printLeft(OutputBuffer &OB) const override {
-    ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
+    ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
     OB += "template<";
     Params.printWithComma(OB);
     OB += "> typename ";
@@ -1550,7 +1550,7 @@ public:
   NodeArray getParams() { return Params; }
 
   void printLeft(OutputBuffer &OB) const override {
-    ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
+    ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
     OB += "<";
     Params.printWithComma(OB);
     OB += ">";
@@ -1824,7 +1824,7 @@ public:
 
   void printDeclarator(OutputBuffer &OB) const {
     if (!TemplateParams.empty()) {
-      ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
+      ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
       OB += "<";
       TemplateParams.printWithComma(OB);
       OB += ">";
@@ -1885,7 +1885,9 @@ public:
   }
 
   void printLeft(OutputBuffer &OB) const override {
-    bool ParenAll = OB.isGtInsideTemplateArgs() &&
+    // If we're printing a '<' inside of a template argument, and we haven't
+    // yet parenthesized the expression, do so now.
+    bool ParenAll = !OB.isInParensInTemplateArgs() &&
                     (InfixOperator == ">" || InfixOperator == ">>");
     if (ParenAll)
       OB.printOpen();
@@ -2061,7 +2063,7 @@ public:
   void printLeft(OutputBuffer &OB) const override {
     OB += CastKind;
     {
-      ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
+      ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
       OB += "<";
       OB.printLeft(*To);
       OB += ">";
@@ -3049,7 +3051,8 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
   Node *parse(bool ParseParams = true);
 };
 
-const char* parse_discriminator(const char* first, const char* last);
+DEMANGLE_ABI const char *parse_discriminator(const char *first,
+                                             const char *last);
 
 // <name> ::= <nested-name> // N
 //        ::= <local-name> # See Scope Encoding below  // Z
@@ -4878,8 +4881,22 @@ Node *AbstractManglingParser<Derived, Alloc>::parseExprPrimary() {
     return nullptr;
   }
   case 'D':
+    switch (look(1))
+    {
+        case 'i': // char32_t
+            First += 2;
+            return getDerived().parseIntegerLiteral("char32_t");
+        case 's': // char16_t
+            First += 2;
+            return getDerived().parseIntegerLiteral("char16_t");
+        case 'u': // char8_t
+            First += 2;
+            return getDerived().parseIntegerLiteral("char8_t");
+        default:
+    }
     if (consumeIf("Dn") && (consumeIf('0'), consumeIf('E')))
       return make<NameType>("nullptr");
+
     return nullptr;
   case 'T':
     // Invalid mangled name per
