@@ -4914,8 +4914,22 @@ Node *AbstractManglingParser<Derived, Alloc>::parseExprPrimary() {
     return nullptr;
   }
   case 'D':
+    switch (look(1))
+    {
+        case 'i': // char32_t
+            First += 2;
+            return getDerived().parseIntegerLiteral("char32_t");
+        case 's': // char16_t
+            First += 2;
+            return getDerived().parseIntegerLiteral("char16_t");
+        case 'u': // char8_t
+            First += 2;
+            return getDerived().parseIntegerLiteral("char8_t");
+        default:
+    }
     if (consumeIf("Dn") && (consumeIf('0'), consumeIf('E')))
       return make<NameType>("nullptr");
+
     return nullptr;
   case 'T':
     // Invalid mangled name per
