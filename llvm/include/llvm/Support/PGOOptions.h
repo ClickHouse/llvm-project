@@ -14,6 +14,12 @@
 #ifndef LLVM_SUPPORT_PGOOPTIONS_H
 #define LLVM_SUPPORT_PGOOPTIONS_H
 
+// illumos: sys/regset.h defines FS as a macro for segment register (value 1)
+// which conflicts with the FS parameter/member names in this file
+#ifdef __sun
+#  undef FS
+#endif
+
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 

@@ -13,6 +13,12 @@
 #ifndef LLVM_TARGET_TARGETMACHINE_H
 #define LLVM_TARGET_TARGETMACHINE_H
 
+// illumos: sys/regset.h defines FS as a macro for segment register (value 1)
+// which conflicts with the FS parameter/member names in this file
+#ifdef __sun
+#  undef FS
+#endif
+
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DataLayout.h"

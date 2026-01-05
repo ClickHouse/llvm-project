@@ -779,10 +779,10 @@ public:
     return(N);
   }
 
-  iterator erase(const_iterator CS, const_iterator CE) {
+  iterator erase(const_iterator CCS, const_iterator CCE) {
     // Just cast away constness because this is a non-const member function.
-    iterator S = const_cast<iterator>(CS);
-    iterator E = const_cast<iterator>(CE);
+    iterator S = const_cast<iterator>(CCS);
+    iterator E = const_cast<iterator>(CCE);
 
     assert(this->isRangeInStorage(S, E) && "Range to erase is out of bounds.");
 

@@ -11,7 +11,6 @@
 #define _LIBCPP___RANGES_ZIP_VIEW_H
 
 #include <__config>
-
 #include <__algorithm/ranges_min.h>
 #include <__compare/three_way_comparable.h>
 #include <__concepts/convertible_to.h>

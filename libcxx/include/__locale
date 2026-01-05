@@ -407,7 +407,22 @@ public:
   static const mask xdigit       = _ISXDIGIT;
   static const mask blank        = _ISBLANK;
   static const mask __regex_word = 0x8000;
-#  elif _LIBCPP_LIBC_NEWLIB
+#  elif defined(__sun)
+  // illumos/Solaris ctype masks. Note: _ISPRINT is 0x8000, so we use
+  // 0x10000 for __regex_word to avoid overlap.
+  typedef unsigned int mask;
+  static const mask space        = _ISSPACE;
+  static const mask print        = _ISPRINT;
+  static const mask cntrl        = _ISCNTRL;
+  static const mask upper        = _ISUPPER;
+  static const mask lower        = _ISLOWER;
+  static const mask alpha        = _ISALPHA;
+  static const mask digit        = _ISDIGIT;
+  static const mask punct        = _ISPUNCT;
+  static const mask xdigit       = _ISXDIGIT;
+  static const mask blank        = _ISBLANK;
+  static const mask __regex_word = 0x10000;
+#  elif defined(_NEWLIB_VERSION)
   // Same type as Newlib's _ctype_ array in newlib/libc/include/ctype.h.
   typedef char mask;
   // In case char is signed, static_cast is needed to avoid warning on

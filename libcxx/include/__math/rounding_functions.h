@@ -26,15 +26,9 @@ namespace __math {
 
 // ceil
 
-[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI float ceil(float __x) _NOEXCEPT { return __builtin_ceilf(__x); }
-
 template <class = int>
 [[__nodiscard__]] _LIBCPP_HIDE_FROM_ABI double ceil(double __x) _NOEXCEPT {
   return __builtin_ceil(__x);
-}
-
-[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI long double ceil(long double __x) _NOEXCEPT {
-  return __builtin_ceill(__x);
 }
 
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
@@ -44,21 +38,23 @@ template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 
 // floor
 
-[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI float floor(float __x) _NOEXCEPT { return __builtin_floorf(__x); }
-
 template <class = int>
 [[__nodiscard__]] _LIBCPP_HIDE_FROM_ABI double floor(double __x) _NOEXCEPT {
   return __builtin_floor(__x);
-}
-
-[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI long double floor(long double __x) _NOEXCEPT {
-  return __builtin_floorl(__x);
 }
 
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 [[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI double floor(_A1 __x) _NOEXCEPT {
   return __builtin_floor((double)__x);
 }
+
+// illumos <math.h> already provides float/long double overloads
+#ifndef __sun
+[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI float ceil(float __x) _NOEXCEPT { return __builtin_ceilf(__x); }
+[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI long double ceil(long double __x) _NOEXCEPT { return __builtin_ceill(__x); }
+[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI float floor(float __x) _NOEXCEPT { return __builtin_floorf(__x); }
+[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI long double floor(long double __x) _NOEXCEPT { return __builtin_floorl(__x); }
+#endif
 
 // llrint
 

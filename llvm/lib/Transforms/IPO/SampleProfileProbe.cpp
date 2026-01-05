@@ -29,6 +29,7 @@
 #include "llvm/Support/CRC.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetMachine.h"
+#include <cmath>
 #include "llvm/Transforms/Utils/Instrumentation.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <vector>
@@ -151,7 +152,7 @@ void PseudoProbeVerifier::verifyProbeFactors(
     auto [It, Inserted] = PrevProbeFactors.try_emplace(I.first);
     if (!Inserted) {
       float PrevProbeFactor = It->second;
-      if (std::abs(CurProbeFactor - PrevProbeFactor) >
+      if (std::fabs(CurProbeFactor - PrevProbeFactor) >
           DistributionFactorVariance) {
         if (!BannerPrinted) {
           dbgs() << "Function " << F->getName() << ":\n";

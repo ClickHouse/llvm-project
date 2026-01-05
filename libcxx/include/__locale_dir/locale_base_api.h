@@ -134,7 +134,10 @@
 //       (by providing global non-reserved names) and the new API. As we move individual platforms
 //       towards the new way of defining the locale base API, this should disappear since each platform
 //       will define those directly.
-#    include <__locale_dir/locale_base_api/ibm.h>
+// illumos: the ibm.h shim conflicts with declarations in illumos system headers
+#    if !defined(__sun)
+#      include <__locale_dir/locale_base_api/ibm.h>
+#    endif
 
 #    include <__locale_dir/locale_base_api/bsd_locale_fallbacks.h>
 

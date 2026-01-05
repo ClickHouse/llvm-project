@@ -23,16 +23,21 @@ namespace __math {
 
 // fabs
 
+// illumos <math.h> already provides float/long double overloads
+#ifndef __sun
 [[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI float fabs(float __x) _NOEXCEPT { return __builtin_fabsf(__x); }
+#endif
 
 template <class = int>
 [[__nodiscard__]] _LIBCPP_HIDE_FROM_ABI double fabs(double __x) _NOEXCEPT {
   return __builtin_fabs(__x);
 }
 
+#ifndef __sun
 [[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI long double fabs(long double __x) _NOEXCEPT {
   return __builtin_fabsl(__x);
 }
+#endif
 
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 [[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI double fabs(_A1 __x) _NOEXCEPT {
@@ -41,12 +46,15 @@ template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 
 // abs
 
+// illumos <math.h> already provides float/long double overloads
+#ifndef __sun
 [[__nodiscard__]] _LIBCPP_HIDE_FROM_ABI inline float abs(float __x) _NOEXCEPT { return __builtin_fabsf(__x); }
 [[__nodiscard__]] _LIBCPP_HIDE_FROM_ABI inline double abs(double __x) _NOEXCEPT { return __builtin_fabs(__x); }
 
 [[__nodiscard__]] _LIBCPP_HIDE_FROM_ABI inline long double abs(long double __x) _NOEXCEPT {
   return __builtin_fabsl(__x);
 }
+#endif
 
 template <class = int>
 [[__nodiscard__]] _LIBCPP_HIDE_FROM_ABI inline int abs(int __x) _NOEXCEPT {
