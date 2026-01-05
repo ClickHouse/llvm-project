@@ -23,14 +23,10 @@ namespace __math {
 
 // log
 
-inline _LIBCPP_HIDE_FROM_ABI float log(float __x) _NOEXCEPT { return __builtin_logf(__x); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double log(double __x) _NOEXCEPT {
   return __builtin_log(__x);
 }
-
-inline _LIBCPP_HIDE_FROM_ABI long double log(long double __x) _NOEXCEPT { return __builtin_logl(__x); }
 
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 inline _LIBCPP_HIDE_FROM_ABI double log(_A1 __x) _NOEXCEPT {
@@ -39,19 +35,23 @@ inline _LIBCPP_HIDE_FROM_ABI double log(_A1 __x) _NOEXCEPT {
 
 // log10
 
-inline _LIBCPP_HIDE_FROM_ABI float log10(float __x) _NOEXCEPT { return __builtin_log10f(__x); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double log10(double __x) _NOEXCEPT {
   return __builtin_log10(__x);
 }
 
-inline _LIBCPP_HIDE_FROM_ABI long double log10(long double __x) _NOEXCEPT { return __builtin_log10l(__x); }
-
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 inline _LIBCPP_HIDE_FROM_ABI double log10(_A1 __x) _NOEXCEPT {
   return __builtin_log10((double)__x);
 }
+
+// illumos <math.h> already provides float/long double overloads
+#ifndef __sun
+inline _LIBCPP_HIDE_FROM_ABI float log(float __x) _NOEXCEPT { return __builtin_logf(__x); }
+inline _LIBCPP_HIDE_FROM_ABI long double log(long double __x) _NOEXCEPT { return __builtin_logl(__x); }
+inline _LIBCPP_HIDE_FROM_ABI float log10(float __x) _NOEXCEPT { return __builtin_log10f(__x); }
+inline _LIBCPP_HIDE_FROM_ABI long double log10(long double __x) _NOEXCEPT { return __builtin_log10l(__x); }
+#endif
 
 // ilogb
 

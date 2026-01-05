@@ -23,19 +23,21 @@ namespace __math {
 
 // sqrt
 
-inline _LIBCPP_HIDE_FROM_ABI float sqrt(float __x) _NOEXCEPT { return __builtin_sqrtf(__x); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double sqrt(double __x) _NOEXCEPT {
   return __builtin_sqrt(__x);
 }
 
-inline _LIBCPP_HIDE_FROM_ABI long double sqrt(long double __x) _NOEXCEPT { return __builtin_sqrtl(__x); }
-
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 inline _LIBCPP_HIDE_FROM_ABI double sqrt(_A1 __x) _NOEXCEPT {
   return __builtin_sqrt((double)__x);
 }
+
+// illumos <math.h> already provides float/long double overloads
+#ifndef __sun
+inline _LIBCPP_HIDE_FROM_ABI float sqrt(float __x) _NOEXCEPT { return __builtin_sqrtf(__x); }
+inline _LIBCPP_HIDE_FROM_ABI long double sqrt(long double __x) _NOEXCEPT { return __builtin_sqrtl(__x); }
+#endif
 
 // cbrt
 
