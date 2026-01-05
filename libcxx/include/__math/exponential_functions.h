@@ -26,14 +26,10 @@ namespace __math {
 
 // exp
 
-inline _LIBCPP_HIDE_FROM_ABI float exp(float __x) _NOEXCEPT { return __builtin_expf(__x); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double exp(double __x) _NOEXCEPT {
   return __builtin_exp(__x);
 }
-
-inline _LIBCPP_HIDE_FROM_ABI long double exp(long double __x) _NOEXCEPT { return __builtin_expl(__x); }
 
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 inline _LIBCPP_HIDE_FROM_ABI double exp(_A1 __x) _NOEXCEPT {
@@ -42,15 +38,9 @@ inline _LIBCPP_HIDE_FROM_ABI double exp(_A1 __x) _NOEXCEPT {
 
 // frexp
 
-inline _LIBCPP_HIDE_FROM_ABI float frexp(float __x, int* __e) _NOEXCEPT { return __builtin_frexpf(__x, __e); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double frexp(double __x, int* __e) _NOEXCEPT {
   return __builtin_frexp(__x, __e);
-}
-
-inline _LIBCPP_HIDE_FROM_ABI long double frexp(long double __x, int* __e) _NOEXCEPT {
-  return __builtin_frexpl(__x, __e);
 }
 
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
@@ -60,15 +50,9 @@ inline _LIBCPP_HIDE_FROM_ABI double frexp(_A1 __x, int* __e) _NOEXCEPT {
 
 // ldexp
 
-inline _LIBCPP_HIDE_FROM_ABI float ldexp(float __x, int __e) _NOEXCEPT { return __builtin_ldexpf(__x, __e); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double ldexp(double __x, int __e) _NOEXCEPT {
   return __builtin_ldexp(__x, __e);
-}
-
-inline _LIBCPP_HIDE_FROM_ABI long double ldexp(long double __x, int __e) _NOEXCEPT {
-  return __builtin_ldexpl(__x, __e);
 }
 
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
@@ -146,15 +130,9 @@ inline _LIBCPP_HIDE_FROM_ABI double scalbn(_A1 __x, int __y) _NOEXCEPT {
 
 // pow
 
-inline _LIBCPP_HIDE_FROM_ABI float pow(float __x, float __y) _NOEXCEPT { return __builtin_powf(__x, __y); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double pow(double __x, double __y) _NOEXCEPT {
   return __builtin_pow(__x, __y);
-}
-
-inline _LIBCPP_HIDE_FROM_ABI long double pow(long double __x, long double __y) _NOEXCEPT {
-  return __builtin_powl(__x, __y);
 }
 
 template <class _A1, class _A2, __enable_if_t<is_arithmetic<_A1>::value && is_arithmetic<_A2>::value, int> = 0>
@@ -163,6 +141,18 @@ inline _LIBCPP_HIDE_FROM_ABI __promote_t<_A1, _A2> pow(_A1 __x, _A2 __y) _NOEXCE
   static_assert(!(_IsSame<_A1, __result_type>::value && _IsSame<_A2, __result_type>::value), "");
   return __math::pow((__result_type)__x, (__result_type)__y);
 }
+
+// illumos <math.h> already provides float/long double overloads
+#ifndef __sun
+inline _LIBCPP_HIDE_FROM_ABI float exp(float __x) _NOEXCEPT { return __builtin_expf(__x); }
+inline _LIBCPP_HIDE_FROM_ABI long double exp(long double __x) _NOEXCEPT { return __builtin_expl(__x); }
+inline _LIBCPP_HIDE_FROM_ABI float frexp(float __x, int* __e) _NOEXCEPT { return __builtin_frexpf(__x, __e); }
+inline _LIBCPP_HIDE_FROM_ABI long double frexp(long double __x, int* __e) _NOEXCEPT { return __builtin_frexpl(__x, __e); }
+inline _LIBCPP_HIDE_FROM_ABI float ldexp(float __x, int __e) _NOEXCEPT { return __builtin_ldexpf(__x, __e); }
+inline _LIBCPP_HIDE_FROM_ABI long double ldexp(long double __x, int __e) _NOEXCEPT { return __builtin_ldexpl(__x, __e); }
+inline _LIBCPP_HIDE_FROM_ABI float pow(float __x, float __y) _NOEXCEPT { return __builtin_powf(__x, __y); }
+inline _LIBCPP_HIDE_FROM_ABI long double pow(long double __x, long double __y) _NOEXCEPT { return __builtin_powl(__x, __y); }
+#endif
 
 } // namespace __math
 

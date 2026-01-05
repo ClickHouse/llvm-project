@@ -121,8 +121,8 @@ using std::__math::abs;
 #        undef lldiv
 #      endif
 
-// MSVCRT already has the correct prototype in <stdlib.h> if __cplusplus is defined
-#      if !defined(_LIBCPP_MSVCRT)
+// MSVCRT and illumos already have the correct prototype in <stdlib.h> if __cplusplus is defined
+#      if !defined(_LIBCPP_MSVCRT) && !defined(__sun)
 inline _LIBCPP_HIDE_FROM_ABI ldiv_t div(long __x, long __y) _NOEXCEPT { return ::ldiv(__x, __y); }
 #        if !(defined(__FreeBSD__) && !defined(__LONG_LONG_SUPPORTED))
 inline _LIBCPP_HIDE_FROM_ABI lldiv_t div(long long __x, long long __y) _NOEXCEPT { return ::lldiv(__x, __y); }
