@@ -26,14 +26,10 @@ namespace __math {
 
 // acos
 
-inline _LIBCPP_HIDE_FROM_ABI float acos(float __x) _NOEXCEPT { return __builtin_acosf(__x); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double acos(double __x) _NOEXCEPT {
   return __builtin_acos(__x);
 }
-
-inline _LIBCPP_HIDE_FROM_ABI long double acos(long double __x) _NOEXCEPT { return __builtin_acosl(__x); }
 
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 inline _LIBCPP_HIDE_FROM_ABI double acos(_A1 __x) _NOEXCEPT {
@@ -42,14 +38,10 @@ inline _LIBCPP_HIDE_FROM_ABI double acos(_A1 __x) _NOEXCEPT {
 
 // asin
 
-inline _LIBCPP_HIDE_FROM_ABI float asin(float __x) _NOEXCEPT { return __builtin_asinf(__x); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double asin(double __x) _NOEXCEPT {
   return __builtin_asin(__x);
 }
-
-inline _LIBCPP_HIDE_FROM_ABI long double asin(long double __x) _NOEXCEPT { return __builtin_asinl(__x); }
 
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 inline _LIBCPP_HIDE_FROM_ABI double asin(_A1 __x) _NOEXCEPT {
@@ -58,14 +50,10 @@ inline _LIBCPP_HIDE_FROM_ABI double asin(_A1 __x) _NOEXCEPT {
 
 // atan
 
-inline _LIBCPP_HIDE_FROM_ABI float atan(float __x) _NOEXCEPT { return __builtin_atanf(__x); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double atan(double __x) _NOEXCEPT {
   return __builtin_atan(__x);
 }
-
-inline _LIBCPP_HIDE_FROM_ABI long double atan(long double __x) _NOEXCEPT { return __builtin_atanl(__x); }
 
 template <class _A1, __enable_if_t<is_integral<_A1>::value, int> = 0>
 inline _LIBCPP_HIDE_FROM_ABI double atan(_A1 __x) _NOEXCEPT {
@@ -74,15 +62,9 @@ inline _LIBCPP_HIDE_FROM_ABI double atan(_A1 __x) _NOEXCEPT {
 
 // atan2
 
-inline _LIBCPP_HIDE_FROM_ABI float atan2(float __y, float __x) _NOEXCEPT { return __builtin_atan2f(__y, __x); }
-
 template <class = int>
 _LIBCPP_HIDE_FROM_ABI double atan2(double __x, double __y) _NOEXCEPT {
   return __builtin_atan2(__x, __y);
-}
-
-inline _LIBCPP_HIDE_FROM_ABI long double atan2(long double __y, long double __x) _NOEXCEPT {
-  return __builtin_atan2l(__y, __x);
 }
 
 template <class _A1, class _A2, __enable_if_t<is_arithmetic<_A1>::value && is_arithmetic<_A2>::value, int> = 0>
@@ -91,6 +73,18 @@ inline _LIBCPP_HIDE_FROM_ABI __promote_t<_A1, _A2> atan2(_A1 __y, _A2 __x) _NOEX
   static_assert(!(_IsSame<_A1, __result_type>::value && _IsSame<_A2, __result_type>::value), "");
   return __math::atan2((__result_type)__y, (__result_type)__x);
 }
+
+// illumos <math.h> already provides float/long double overloads
+#ifndef __sun
+inline _LIBCPP_HIDE_FROM_ABI float acos(float __x) _NOEXCEPT { return __builtin_acosf(__x); }
+inline _LIBCPP_HIDE_FROM_ABI long double acos(long double __x) _NOEXCEPT { return __builtin_acosl(__x); }
+inline _LIBCPP_HIDE_FROM_ABI float asin(float __x) _NOEXCEPT { return __builtin_asinf(__x); }
+inline _LIBCPP_HIDE_FROM_ABI long double asin(long double __x) _NOEXCEPT { return __builtin_asinl(__x); }
+inline _LIBCPP_HIDE_FROM_ABI float atan(float __x) _NOEXCEPT { return __builtin_atanf(__x); }
+inline _LIBCPP_HIDE_FROM_ABI long double atan(long double __x) _NOEXCEPT { return __builtin_atanl(__x); }
+inline _LIBCPP_HIDE_FROM_ABI float atan2(float __y, float __x) _NOEXCEPT { return __builtin_atan2f(__y, __x); }
+inline _LIBCPP_HIDE_FROM_ABI long double atan2(long double __y, long double __x) _NOEXCEPT { return __builtin_atan2l(__y, __x); }
+#endif
 
 } // namespace __math
 
