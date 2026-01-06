@@ -424,7 +424,12 @@ static bool checkAddrInSegment(const Elf_Phdr *phdr, size_t image_base,
 static bool checkForUnwindInfoSegment(const Elf_Phdr *phdr, size_t image_base,
                                       dl_iterate_cb_data *cbdata) {
 #if defined(_LIBUNWIND_SUPPORT_DWARF_INDEX)
+#if defined(PT_SUNW_UNWIND)
+  // illumos/Solaris use PT_SUNW_EH_FRAME and PT_SUNW_UNWIND instead of PT_GNU_EH_FRAME
+  if (phdr->p_type == PT_SUNW_EH_FRAME || phdr->p_type == PT_SUNW_UNWIND) {
+#else
   if (phdr->p_type == PT_GNU_EH_FRAME) {
+#endif
     EHHeaderParser<LocalAddressSpace>::EHHeaderInfo hdrInfo;
     uintptr_t eh_frame_hdr_start = image_base + phdr->p_vaddr;
     cbdata->sects->dwarf_index_section = eh_frame_hdr_start;
