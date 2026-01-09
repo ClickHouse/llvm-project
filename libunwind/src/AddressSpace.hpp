@@ -424,8 +424,9 @@ static bool checkAddrInSegment(const Elf_Phdr *phdr, size_t image_base,
 static bool checkForUnwindInfoSegment(const Elf_Phdr *phdr, size_t image_base,
                                       dl_iterate_cb_data *cbdata) {
 #if defined(_LIBUNWIND_SUPPORT_DWARF_INDEX)
-#if defined(PT_SUNW_UNWIND)
-  // illumos/Solaris use PT_SUNW_EH_FRAME and PT_SUNW_UNWIND instead of PT_GNU_EH_FRAME
+#if defined(PT_SUNW_EH_FRAME) && defined(PT_SUNW_UNWIND)
+  // illumos/Solaris use PT_SUNW_EH_FRAME and PT_SUNW_UNWIND instead of PT_GNU_EH_FRAME.
+  // FreeBSD defines PT_SUNW_UNWIND but not PT_SUNW_EH_FRAME, so check for both.
   if (phdr->p_type == PT_SUNW_EH_FRAME || phdr->p_type == PT_SUNW_UNWIND) {
 #else
   if (phdr->p_type == PT_GNU_EH_FRAME) {
