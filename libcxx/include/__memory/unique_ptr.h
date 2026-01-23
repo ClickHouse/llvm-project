@@ -57,6 +57,10 @@
 _LIBCPP_PUSH_MACROS
 #include <__undef_macros>
 
+#if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
+extern "C" std::size_t __asan_load_cxx_array_cookie(std::size_t*);
+#endif
+
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <class _Tp>
@@ -325,7 +329,12 @@ struct __unique_ptr_array_bounds_stateless {
     // is in-bounds. The compiler catches invalid accesses anyway.
     if (__libcpp_is_constant_evaluated())
       return true;
+#if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
+    // With ASan enabled, reading cookie directly causes errors because the memory is poisoned.
+    size_t __cookie = __asan_load_cxx_array_cookie(reinterpret_cast<size_t*>(__ptr) - 1);
+#else
     size_t __cookie = std::__get_array_cookie(__ptr);
+#endif
     return __index < __cookie;
   }
 
@@ -353,7 +362,12 @@ struct __unique_ptr_array_bounds_stored {
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR bool __in_bounds(_Tp* __ptr, size_t __index) const {
     if (__libcpp_is_constant_evaluated())
       return true;
+#if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
+    // With ASan enabled, reading cookie directly causes errors because the memory is poisoned.
+    size_t __cookie = __asan_load_cxx_array_cookie(reinterpret_cast<size_t*>(__ptr) - 1);
+#else
     size_t __cookie = std::__get_array_cookie(__ptr);
+#endif
     return __index < __cookie;
   }
 
