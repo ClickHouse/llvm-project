@@ -19,6 +19,12 @@
 #ifndef LLVM_SUPPORT_COMMANDLINE_H
 #define LLVM_SUPPORT_COMMANDLINE_H
 
+// illumos: sys/regset.h defines FS as a macro for segment register (value 1)
+// which conflicts with the FS parameter/member names in this file
+#ifdef __sun
+#  undef FS
+#endif
+
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
