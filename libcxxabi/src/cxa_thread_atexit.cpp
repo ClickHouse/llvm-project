@@ -104,7 +104,7 @@ namespace {
 } // namespace
 
 
-#if defined(__linux__) || defined(__Fuchsia__)
+#if defined(__linux__) || defined(__Fuchsia__) || defined(__sun)
 extern "C" {
 
     _LIBCXXABI_FUNC_VIS int __cxa_thread_atexit_impl(Dtor dtor, void* obj, void* dso_symbol) throw() {
@@ -137,5 +137,5 @@ extern "C" {
       return __cxa_thread_atexit_impl(dtor, obj, dso_symbol);
   }
 } // extern "C"
-#endif // defined(__linux__) || defined(__Fuchsia__)
+#endif // defined(__linux__) || defined(__Fuchsia__) || defined(__sun)
 } // namespace __cxxabiv1
