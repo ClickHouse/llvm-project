@@ -28,6 +28,14 @@ bool InterceptFunction(const char *name, const char *ver, uptr *ptr_to_real,
                        uptr func, uptr trampoline);
 }  // namespace __interception
 
+#if SANITIZER_STATIC_LIBC_INTERCEPTION
+// REAL(func) is bound at link time to the renamed __real_<func> symbols
+// (see DEFINE_REAL in interception.h); there is nothing to look up at runtime.
+#define INTERCEPT_FUNCTION_LINUX_OR_FREEBSD(func) \
+  (REAL(func) != nullptr)
+#define INTERCEPT_FUNCTION_VER_LINUX_OR_FREEBSD(func, symver) \
+  INTERCEPT_FUNCTION_LINUX_OR_FREEBSD(func)
+#else
 // Cast func to type of REAL(func) before casting to uptr in case it is an
 // overloaded function, which is the case for some glibc functions when
 // _FORTIFY_SOURCE is used. This disambiguates which overload to use.
@@ -49,6 +57,7 @@ bool InterceptFunction(const char *name, const char *ver, uptr *ptr_to_real,
 #define INTERCEPT_FUNCTION_VER_LINUX_OR_FREEBSD(func, symver) \
   INTERCEPT_FUNCTION_LINUX_OR_FREEBSD(func)
 #endif  // SANITIZER_GLIBC || SANITIZER_FREEBSD || SANITIZER_NETBSD
+#endif  // SANITIZER_STATIC_LIBC_INTERCEPTION
 
 #endif  // INTERCEPTION_LINUX_H
 #endif  // SANITIZER_LINUX || SANITIZER_FREEBSD || SANITIZER_NETBSD ||

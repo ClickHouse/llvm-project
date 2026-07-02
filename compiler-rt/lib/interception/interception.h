@@ -300,11 +300,26 @@ const interpose_substitution substitution_##func_name[]             \
 // without defining INTERCEPTOR(..., foo, ...). For example, if you override
 // foo with an interceptor for other function.
 #if !SANITIZER_APPLE && !SANITIZER_FUCHSIA
-#  define DEFINE_REAL(ret_type, func, ...)            \
-    typedef ret_type (*FUNC_TYPE(func))(__VA_ARGS__); \
-    namespace __interception {                        \
-    FUNC_TYPE(func) PTR_TO_REAL(func);                \
-    }
+#  if SANITIZER_STATIC_LIBC_INTERCEPTION
+// Statically linked libc (e.g. musl built from sources): there is no dlsym()
+// to find the real functions at runtime. The build renames the intercepted
+// functions in the libc archive to __real_<func> (see the ClickHouse
+// contrib/compiler-rt-cmake), so bind REAL(func) to them at link time.
+// The symbols are weak: functions the libc does not provide leave REAL(func)
+// null, same as a failed dlsym() lookup.
+#    define DEFINE_REAL(ret_type, func, ...)                                 \
+      typedef ret_type (*FUNC_TYPE(func))(__VA_ARGS__);                     \
+      extern "C" ret_type __real_##func(__VA_ARGS__) SANITIZER_WEAK_ATTRIBUTE; \
+      namespace __interception {                                            \
+      FUNC_TYPE(func) PTR_TO_REAL(func) = (FUNC_TYPE(func))&__real_##func;  \
+      }
+#  else
+#    define DEFINE_REAL(ret_type, func, ...)          \
+      typedef ret_type (*FUNC_TYPE(func))(__VA_ARGS__); \
+      namespace __interception {                       \
+      FUNC_TYPE(func) PTR_TO_REAL(func);               \
+      }
+#  endif
 #else
 # define DEFINE_REAL(ret_type, func, ...)
 #endif
