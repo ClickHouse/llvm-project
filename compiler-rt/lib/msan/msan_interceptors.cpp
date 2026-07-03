@@ -939,6 +939,11 @@ INTERCEPTOR(int, __getrlimit, int resource, void *rlim) {
   INTERCEPTOR_GETRLIMIT_BODY(__getrlimit, resource, rlim);
 }
 
+// getrlimit64/prlimit64 are glibc's LFS variants; struct_rlimit64_sz only exists
+// under SANITIZER_GLIBC (see sanitizer_platform_limits_posix.cpp). musl does not
+// have distinct getrlimit64/prlimit64 symbols at all - they are #defined to
+// getrlimit/prlimit, already covered by __getrlimit/prlimit below.
+#if SANITIZER_GLIBC
 INTERCEPTOR(int, getrlimit64, int resource, void *rlim) {
   if (msan_init_is_running) return REAL(getrlimit64)(resource, rlim);
   ENSURE_MSAN_INITED();
@@ -946,6 +951,7 @@ INTERCEPTOR(int, getrlimit64, int resource, void *rlim) {
   if (!res) __msan_unpoison(rlim, __sanitizer::struct_rlimit64_sz);
   return res;
 }
+#endif
 
 INTERCEPTOR(int, prlimit, int pid, int resource, void *new_rlimit,
             void *old_rlimit) {
@@ -958,6 +964,7 @@ INTERCEPTOR(int, prlimit, int pid, int resource, void *new_rlimit,
   return res;
 }
 
+#if SANITIZER_GLIBC
 INTERCEPTOR(int, prlimit64, int pid, int resource, void *new_rlimit,
             void *old_rlimit) {
   if (msan_init_is_running)
@@ -968,11 +975,17 @@ INTERCEPTOR(int, prlimit64, int pid, int resource, void *new_rlimit,
   if (!res) __msan_unpoison(old_rlimit, __sanitizer::struct_rlimit64_sz);
   return res;
 }
+#endif
 
 #define MSAN_MAYBE_INTERCEPT___GETRLIMIT INTERCEPT_FUNCTION(__getrlimit)
-#define MSAN_MAYBE_INTERCEPT_GETRLIMIT64 INTERCEPT_FUNCTION(getrlimit64)
 #define MSAN_MAYBE_INTERCEPT_PRLIMIT INTERCEPT_FUNCTION(prlimit)
+#if SANITIZER_GLIBC
+#define MSAN_MAYBE_INTERCEPT_GETRLIMIT64 INTERCEPT_FUNCTION(getrlimit64)
 #define MSAN_MAYBE_INTERCEPT_PRLIMIT64 INTERCEPT_FUNCTION(prlimit64)
+#else
+#define MSAN_MAYBE_INTERCEPT_GETRLIMIT64
+#define MSAN_MAYBE_INTERCEPT_PRLIMIT64
+#endif
 #else
 #define MSAN_MAYBE_INTERCEPT___GETRLIMIT
 #define MSAN_MAYBE_INTERCEPT_GETRLIMIT64
