@@ -609,6 +609,7 @@ DEFINE_REAL(int, __sigsetjmp, void *env)
 // The real interceptor for setjmp is special, and implemented in pure asm. We
 // just need to initialize the REAL functions so that they can be used in asm.
 static void InitializeSetjmpInterceptors() {
+#if !SANITIZER_STATIC_LIBC_INTERCEPTION
   // We can not use TSAN_INTERCEPT to get setjmp addr, because it does &setjmp and
   // setjmp is not present in some versions of libc.
   using __interception::InterceptFunction;
@@ -618,6 +619,15 @@ static void InitializeSetjmpInterceptors() {
                     0);
 #if !SANITIZER_NETBSD
   InterceptFunction("__sigsetjmp", (uptr*)&REAL(__sigsetjmp), 0, 0);
+#endif
+#else
+  // With SANITIZER_STATIC_LIBC_INTERCEPTION there is no dlsym() to look these
+  // up at runtime (see interception_linux.cpp's InterceptFunction, which just
+  // calls dlsym(RTLD_NEXT, name) and always fails on a static binary, which
+  // would overwrite the REAL() pointers below with null). REAL(setjmp_symname)
+  // et al. are already correctly bound at link time by the DEFINE_REAL calls
+  // above, via the __real_<func> renamed musl symbols, so there is nothing
+  // left to do here.
 #endif
 }
 #endif  // SANITIZER_APPLE
