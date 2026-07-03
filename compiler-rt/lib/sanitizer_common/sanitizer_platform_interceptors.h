@@ -520,7 +520,13 @@ SANITIZER_WEAK_IMPORT void *aligned_alloc(__sanitizer::usize __alignment,
 #define SANITIZER_INTERCEPT_SEND_SENDTO SI_POSIX
 #define SANITIZER_INTERCEPT_EVENTFD_READ_WRITE (SI_LINUX || SI_FREEBSD)
 
-#define SI_STAT_LINUX (SI_LINUX && __GLIBC_PREREQ(2, 33))
+// __GLIBC_PREREQ(2, 33) selects glibc's unversioned stat/lstat (before that,
+// they were __xstat/__lxstat wrappers, handled by the SANITIZER_INTERCEPT___XSTAT
+// branch below). musl has never had the versioned stat ABI - it always exposes
+// plain stat/lstat/fstat/fstatat - so it belongs on this branch unconditionally,
+// not gated behind a glibc version macro that is simply undefined (and, via
+// sanitizer_glibc_version.h, hardcoded to 0) for it.
+#define SI_STAT_LINUX (SI_LINUX && (SANITIZER_MUSL || __GLIBC_PREREQ(2, 33)))
 #define SANITIZER_INTERCEPT_STAT                                    \
   (SI_FREEBSD || SI_MAC || SI_ANDROID || SI_NETBSD || SI_SOLARIS || \
    SI_STAT_LINUX || !SI_NOT_AIX)
