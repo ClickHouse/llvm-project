@@ -83,6 +83,12 @@
 #include <linux/input.h>
 #include <linux/ioctl.h>
 #include <linux/soundcard.h>
+// On musl, <sys/sysinfo.h> above already defines struct sysinfo; block the kernel
+// UAPI header's own (transitively pulled in by linux/sysctl.h -> linux/kernel.h)
+// redefinition via its header guard, same as the asm/sigcontext.h case below.
+#if SANITIZER_MUSL
+#  define _LINUX_SYSINFO_H
+#endif
 #include <linux/sysctl.h>
 #include <linux/utsname.h>
 #include <linux/posix_types.h>
@@ -99,6 +105,16 @@
 #    if defined(__mips64) || defined(__aarch64__) || defined(__arm__) ||       \
         defined(__hexagon__) || defined(__loongarch__) || SANITIZER_RISCV64 || \
         defined(__sparc__) || defined(__powerpc64__)
+// On musl/aarch64, <signal.h> above (via musl's bits/signal.h) already defines
+// sigcontext, _aarch64_ctx, fpsimd_context, esr_context and extra_context with the
+// same layout as the kernel UAPI header below; without this, the kernel's
+// asm/sigcontext.h (pulled in transitively by asm/ptrace.h) redefines them and
+// fails to compile. Block just that sub-include via its header guard; the
+// user_pt_regs/user_fpsimd_state types this file actually needs from
+// asm/ptrace.h are declared elsewhere in it, unaffected.
+#      if defined(__aarch64__) && SANITIZER_MUSL
+#        define __ASM_SIGCONTEXT_H
+#      endif
 #      include <asm/ptrace.h>
 #      ifdef __arm__
 typedef struct user_fpregs elf_fpregset_t;
