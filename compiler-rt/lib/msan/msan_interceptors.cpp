@@ -778,7 +778,12 @@ INTERCEPTOR(int, putenv, char *string) {
   return res;
 }
 
-#define SANITIZER_STAT_LINUX (SANITIZER_LINUX && __GLIBC_PREREQ(2, 33))
+// Like SI_STAT_LINUX in sanitizer_platform_interceptors.h: musl has never had
+// the versioned stat ABI - it always exposes plain fstat/fstatat - so it
+// belongs on this branch unconditionally, not gated behind a glibc version
+// macro that is hardcoded to 0 for it (see sanitizer_glibc_version.h).
+#define SANITIZER_STAT_LINUX \
+  (SANITIZER_LINUX && (SANITIZER_MUSL || __GLIBC_PREREQ(2, 33)))
 #if SANITIZER_FREEBSD || SANITIZER_NETBSD || SANITIZER_STAT_LINUX
 INTERCEPTOR(int, fstat, int fd, void *buf) {
   ENSURE_MSAN_INITED();
@@ -792,7 +797,9 @@ INTERCEPTOR(int, fstat, int fd, void *buf) {
 #define MSAN_MAYBE_INTERCEPT_FSTAT
 #endif
 
-#if SANITIZER_STAT_LINUX
+// musl has no distinct fstat64/fstatat64 symbols (off_t is always 64-bit),
+// and struct_stat64_sz is only defined for glibc.
+#if SANITIZER_STAT_LINUX && !SANITIZER_MUSL
 INTERCEPTOR(int, fstat64, int fd, void *buf) {
   ENSURE_MSAN_INITED();
   int res = REAL(fstat64)(fd, buf);
@@ -843,7 +850,7 @@ INTERCEPTOR(int, fstatat, int fd, char *pathname, void *buf, int flags) {
 #  define MSAN_MAYBE_INTERCEPT_FSTATAT
 #endif
 
-#if SANITIZER_STAT_LINUX
+#if SANITIZER_STAT_LINUX && !SANITIZER_MUSL
 INTERCEPTOR(int, fstatat64, int fd, char *pathname, void *buf, int flags) {
   ENSURE_MSAN_INITED();
   int res = REAL(fstatat64)(fd, pathname, buf, flags);
