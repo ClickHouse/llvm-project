@@ -4116,9 +4116,12 @@ INTERCEPTOR(char *, strerror, int errnum) {
 //    writes message to buf.
 //  * GNU version returns message pointer, which points to either buf or some
 //    static storage.
+// musl only ever provides the POSIX variant, regardless of _GNU_SOURCE.
+// Taking the GNU branch there reinterprets the int return value as char*:
+// a successful call returns 0, and internal_strlen(NULL) below crashes.
 #if ((_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !_GNU_SOURCE) || \
-    SANITIZER_APPLE || SANITIZER_ANDROID || SANITIZER_NETBSD ||                 \
-    SANITIZER_FREEBSD
+    SANITIZER_MUSL || SANITIZER_APPLE || SANITIZER_ANDROID ||                 \
+    SANITIZER_NETBSD || SANITIZER_FREEBSD
 // POSIX version. Spec is not clear on whether buf is NULL-terminated.
 // At least on OSX, buf contents are valid even when the call fails.
 INTERCEPTOR(int, strerror_r, int errnum, char *buf, SIZE_T buflen) {
