@@ -551,6 +551,13 @@ extern "C" SANITIZER_WEAK_ATTRIBUTE void __libc_get_static_tls_bounds(void **,
                                                                       void **);
 #  endif
 
+#  if SANITIZER_MUSL
+// Provided by the ClickHouse musl fork (src/thread/pthread_tsd_range.c):
+// bounds of the calling thread's pthread_setspecific slot array.
+extern "C" SANITIZER_WEAK_ATTRIBUTE void __pthread_current_tsd_range(void **,
+                                                                     void **);
+#  endif
+
 #  if !SANITIZER_GO
 static void GetTls(uptr *addr, uptr *size) {
 #    if SANITIZER_ANDROID
@@ -643,6 +650,30 @@ static void GetTls(uptr *addr, uptr *size) {
   *size += tcb_size;
 #          endif
 #        endif
+#      endif
+#      if SANITIZER_MUSL
+  // musl places the pthread_setspecific slot array ("tsd") at the top of the
+  // thread mapping, above the static TLS block and the thread control block.
+  // Extend the scanned range to cover it, so that allocations referenced only
+  // through pthread_setspecific - e.g. libc++'s per-thread __thread_struct of
+  // any thread still running at exit - are treated as reachable by lsan. This
+  // mirrors what the glibc branch achieves via ThreadDescriptorSize(), which
+  // covers pthread::specific_1stblock inside the TCB. The bounds come from a
+  // helper in the ClickHouse musl fork (src/thread/pthread_tsd_range.c); the
+  // reference is weak so a build against another libc simply skips this.
+  if (&__pthread_current_tsd_range) {
+    void *tsd_begin = nullptr;
+    void *tsd_end = nullptr;
+    __pthread_current_tsd_range(&tsd_begin, &tsd_end);
+    if (tsd_begin) {
+      // The tsd array lives within the same mapping as the static TLS block,
+      // so extending the range up to its end is safe to scan.
+      uptr end = Max(*addr + *size, reinterpret_cast<uptr>(tsd_end));
+      uptr begin = Min(*addr, reinterpret_cast<uptr>(tsd_begin));
+      *addr = begin;
+      *size = end - begin;
+    }
+  }
 #      endif
 #    elif SANITIZER_NETBSD
   struct tls_tcb *const tcb = ThreadSelfTlsTcb();
