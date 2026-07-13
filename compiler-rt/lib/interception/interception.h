@@ -307,11 +307,18 @@ const interpose_substitution substitution_##func_name[]             \
 // contrib/compiler-rt-cmake), so bind REAL(func) to them at link time.
 // The symbols are weak: functions the libc does not provide leave REAL(func)
 // null, same as a failed dlsym() lookup.
+// REAL_FUNC needs the extra expansion level so that callers passing a macro
+// as the function name (e.g. tsan's DEFINE_REAL(int, setjmp_symname, ...))
+// get the macro expanded before pasting; a direct __real_##func would produce
+// __real_setjmp_symname, an undefined weak symbol that resolves to null and
+// crashes the asm setjmp interceptors jumping through it.
+#    define REAL_FUNC_PASTE(func) __real_##func
+#    define REAL_FUNC(func) REAL_FUNC_PASTE(func)
 #    define DEFINE_REAL(ret_type, func, ...)                                 \
       typedef ret_type (*FUNC_TYPE(func))(__VA_ARGS__);                     \
-      extern "C" ret_type __real_##func(__VA_ARGS__) SANITIZER_WEAK_ATTRIBUTE; \
+      extern "C" ret_type REAL_FUNC(func)(__VA_ARGS__) SANITIZER_WEAK_ATTRIBUTE; \
       namespace __interception {                                            \
-      FUNC_TYPE(func) PTR_TO_REAL(func) = (FUNC_TYPE(func))&__real_##func;  \
+      FUNC_TYPE(func) PTR_TO_REAL(func) = (FUNC_TYPE(func))&REAL_FUNC(func); \
       }
 #  else
 #    define DEFINE_REAL(ret_type, func, ...)          \
