@@ -662,17 +662,23 @@ static void GetTls(uptr *addr, uptr *size) {
   // helper in the ClickHouse musl fork (src/thread/pthread_tsd_range.c); the
   // reference is weak so a build against another libc simply skips this.
   if (&__pthread_current_tsd_range) {
-    void *tsd_begin = nullptr;
-    void *tsd_end = nullptr;
-    __pthread_current_tsd_range(&tsd_begin, &tsd_end);
-    if (tsd_begin) {
-      // The tsd array lives within the same mapping as the static TLS block,
-      // so extending the range up to its end is safe to scan.
-      uptr end = Max(*addr + *size, reinterpret_cast<uptr>(tsd_end));
-      uptr begin = Min(*addr, reinterpret_cast<uptr>(tsd_begin));
-      *addr = begin;
-      *size = end - begin;
-    }
+    void *tsd_begin_ptr = nullptr;
+    void *tsd_end_ptr = nullptr;
+    __pthread_current_tsd_range(&tsd_begin_ptr, &tsd_end_ptr);
+    const uptr tsd_begin = reinterpret_cast<uptr>(tsd_begin_ptr);
+    const uptr tsd_end = reinterpret_cast<uptr>(tsd_end_ptr);
+    // Extend only when the tsd array actually sits above the detected static
+    // TLS block, separated by no more than the thread control block (they are
+    // placed together at the top of the thread mapping, so the whole extended
+    // range is mapped and safe to scan). For the main thread the slots are a
+    // static array (__pthread_tsd_main), which is scanned as a global root
+    // already - and it can be arbitrarily far from the TLS block, so merging
+    // the two ranges blindly would create a huge range covering unmapped
+    // memory and crash the leak scanner. The same applies when no module has
+    // a PT_TLS segment and the detected TLS range is empty.
+    if (tsd_begin && *size && tsd_begin >= *addr + *size &&
+        tsd_begin - (*addr + *size) <= 4096)
+      *size = tsd_end - *addr;
   }
 #      endif
 #    elif SANITIZER_NETBSD
