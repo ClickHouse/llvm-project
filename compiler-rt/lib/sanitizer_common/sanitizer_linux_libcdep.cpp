@@ -980,10 +980,19 @@ u64 MonotonicNanoTime() {
   return (u64)ts.tv_sec * (1000ULL * 1000 * 1000) + ts.tv_nsec;
 }
 #  else
-// Non-glibc & Go always use the regular function.
+// Non-glibc (e.g. musl) & Go: use the raw syscall rather than the libc
+// clock_gettime. Under a sanitizer that intercepts clock_gettime (TSan), the
+// interceptor processes pending asynchronous signals, i.e. runs user signal
+// handlers, which in TSan acquire slot locks. MonotonicNanoTime is called from
+// inside the allocator (SizeClassAllocator64::MaybeReleaseToOS) while the
+// allocator region mutex is held, so routing it through the interceptor
+// establishes an "allocator region mutex -> slot lock" order that deadlocks
+// against fork(): ForkBefore locks every slot and then the allocator. glibc
+// avoids this by calling the un-intercepted real_clock_gettime above; do the
+// equivalent here with the internal (raw-syscall) variant.
 u64 MonotonicNanoTime() {
   timespec ts;
-  clock_gettime(CLOCK_MONOTONIC, &ts);
+  internal_clock_gettime(CLOCK_MONOTONIC, &ts);
   return (u64)ts.tv_sec * (1000ULL * 1000 * 1000) + ts.tv_nsec;
 }
 #  endif  // SANITIZER_GLIBC && !SANITIZER_GO
