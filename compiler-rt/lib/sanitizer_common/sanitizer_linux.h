@@ -69,7 +69,7 @@ struct ScopedBlockSignals {
   __sanitizer_sigset_t saved_;
 };
 
-#  if SANITIZER_GLIBC
+#  if SANITIZER_LINUX
 uptr internal_clock_gettime(__sanitizer_clockid_t clk_id, void *tp);
 #  endif
 
