@@ -24,6 +24,10 @@
 #include "sanitizer_common/sanitizer_flags.h"
 #include "sanitizer_common/sanitizer_interface_internal.h"
 #include "sanitizer_common/sanitizer_libc.h"
+#include "sanitizer_common/sanitizer_platform.h"
+#if SANITIZER_LINUX
+#  include "sanitizer_common/sanitizer_linux.h"
+#endif
 #include "sanitizer_common/sanitizer_procmaps.h"
 #include "sanitizer_common/sanitizer_stackdepot.h"
 #include "sanitizer_common/sanitizer_stacktrace.h"
@@ -243,6 +247,16 @@ void PrintWarningWithOrigin(uptr pc, uptr bp, u32 origin) {
   }
 
   ++msan_report_count;
+
+#if SANITIZER_LINUX
+  // Reporting is slow (out-of-process symbolization), and ScopedErrorReportLock
+  // aborts the whole process without printing anything if the same thread
+  // re-enters while a report is in flight. Defer asynchronous signals until the
+  // report is done so a handler that touches uninitialized memory cannot wipe
+  // it. Synchronous signals (SIGSEGV, SIGABRT, ...) stay unblocked, so a real
+  // crash while reporting still aborts as before.
+  ScopedBlockSignals block(nullptr);
+#endif
 
   GET_FATAL_STACK_TRACE_PC_BP(pc, bp);
 
