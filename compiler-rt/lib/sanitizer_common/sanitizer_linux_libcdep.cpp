@@ -547,6 +547,13 @@ extern "C" SANITIZER_WEAK_ATTRIBUTE void __libc_get_static_tls_bounds(void **,
                                                                       void **);
 #  endif
 
+#  if SANITIZER_MUSL
+// Provided by the ClickHouse musl fork (src/thread/pthread_tsd_range.c):
+// bounds of the calling thread's pthread_setspecific slot array.
+extern "C" SANITIZER_WEAK_ATTRIBUTE void __pthread_current_tsd_range(void **,
+                                                                     void **);
+#  endif
+
 #  if !SANITIZER_GO
 static void GetTls(uptr *addr, uptr *size) {
 #    if SANITIZER_ANDROID
@@ -639,6 +646,36 @@ static void GetTls(uptr *addr, uptr *size) {
   *size += tcb_size;
 #          endif
 #        endif
+#      endif
+#      if SANITIZER_MUSL
+  // musl places the pthread_setspecific slot array ("tsd") at the top of the
+  // thread mapping, above the static TLS block and the thread control block.
+  // Extend the scanned range to cover it, so that allocations referenced only
+  // through pthread_setspecific - e.g. libc++'s per-thread __thread_struct of
+  // any thread still running at exit - are treated as reachable by lsan. This
+  // mirrors what the glibc branch achieves via ThreadDescriptorSize(), which
+  // covers pthread::specific_1stblock inside the TCB. The bounds come from a
+  // helper in the ClickHouse musl fork (src/thread/pthread_tsd_range.c); the
+  // reference is weak so a build against another libc simply skips this.
+  if (&__pthread_current_tsd_range) {
+    void *tsd_begin_ptr = nullptr;
+    void *tsd_end_ptr = nullptr;
+    __pthread_current_tsd_range(&tsd_begin_ptr, &tsd_end_ptr);
+    const uptr tsd_begin = reinterpret_cast<uptr>(tsd_begin_ptr);
+    const uptr tsd_end = reinterpret_cast<uptr>(tsd_end_ptr);
+    // Extend only when the tsd array actually sits above the detected static
+    // TLS block, separated by no more than the thread control block (they are
+    // placed together at the top of the thread mapping, so the whole extended
+    // range is mapped and safe to scan). For the main thread the slots are a
+    // static array (__pthread_tsd_main), which is scanned as a global root
+    // already - and it can be arbitrarily far from the TLS block, so merging
+    // the two ranges blindly would create a huge range covering unmapped
+    // memory and crash the leak scanner. The same applies when no module has
+    // a PT_TLS segment and the detected TLS range is empty.
+    if (tsd_begin && *size && tsd_begin >= *addr + *size &&
+        tsd_begin - (*addr + *size) <= 4096)
+      *size = tsd_end - *addr;
+  }
 #      endif
 #    elif SANITIZER_NETBSD
   struct tls_tcb *const tcb = ThreadSelfTlsTcb();
