@@ -1941,6 +1941,26 @@ TSAN_INTERCEPTOR(int, close, int fd) {
   return REAL(close)(fd);
 }
 
+// POSIX.1-2024. Only musl provides it so far, and it closes the descriptor
+// exactly like close() does (POSIX_CLOSE_RESTART is 0 there). Applications
+// prefer it over close() when the platform announces it, so without this
+// interceptor those descriptors are never released from the fd table: the
+// descriptor number is reported as still open by its creating thread, and the
+// next thread to reuse it - through opendir(), whose descriptor we do not
+// register, but whose closedir() we do check - is reported as racing with that
+// creator.
+#if SANITIZER_MUSL
+TSAN_INTERCEPTOR(int, posix_close, int fd, int flags) {
+  SCOPED_INTERCEPTOR_RAW(posix_close, fd, flags);
+  if (!in_symbolizer())
+    FdClose(thr, pc, fd);
+  return REAL(posix_close)(fd, flags);
+}
+#define TSAN_MAYBE_INTERCEPT_POSIX_CLOSE TSAN_INTERCEPT(posix_close)
+#else
+#define TSAN_MAYBE_INTERCEPT_POSIX_CLOSE
+#endif
+
 #if SANITIZER_LINUX
 TSAN_INTERCEPTOR(int, __close, int fd) {
   SCOPED_INTERCEPTOR_RAW(__close, fd);
@@ -3148,6 +3168,7 @@ void InitializeInterceptors() {
   TSAN_INTERCEPT(listen);
   TSAN_MAYBE_INTERCEPT_EPOLL;
   TSAN_INTERCEPT(close);
+  TSAN_MAYBE_INTERCEPT_POSIX_CLOSE;
   TSAN_MAYBE_INTERCEPT___CLOSE;
   TSAN_MAYBE_INTERCEPT___RES_ICLOSE;
   TSAN_INTERCEPT(pipe);
