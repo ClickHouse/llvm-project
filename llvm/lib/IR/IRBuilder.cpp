@@ -1169,8 +1169,18 @@ Value *IRBuilderBase::CreatePtrDiff(Value *LHS, Value *RHS, const Twine &Name,
                                     bool IsNUW) {
   assert(LHS->getType() == RHS->getType() &&
          "Pointer subtraction operand types must match!");
-  Value *LHSAddr = CreatePtrToAddr(LHS);
-  Value *RHSAddr = CreatePtrToAddr(RHS);
+  // ClickHouse: emit `ptrtoint` instead of `ptrtoaddr`. Optimizer support for
+  // `ptrtoaddr` is still incomplete: the mid-end does not yet derive pointer
+  // equality facts from equality of `ptrtoaddr` values, so e.g. a select
+  // dominated by a pointer-difference-is-zero condition is left unfolded,
+  // putting a `cmov` on the critical path of JIT-compiled hot loops
+  // (see the `replaceRegexp_fallback` performance test regression).
+  // Revisit when https://github.com/llvm/llvm-project/pull/209164 and related
+  // `ptrtoaddr` optimization work has landed and propagated.
+  const DataLayout &DL = BB->getDataLayout();
+  Type *AddrTy = DL.getAddressType(LHS->getType());
+  Value *LHSAddr = CreatePtrToInt(LHS, AddrTy);
+  Value *RHSAddr = CreatePtrToInt(RHS, AddrTy);
   return CreateSub(LHSAddr, RHSAddr, Name, IsNUW);
 }
 Value *IRBuilderBase::CreatePtrDiff(Type *ElemTy, Value *LHS, Value *RHS,
