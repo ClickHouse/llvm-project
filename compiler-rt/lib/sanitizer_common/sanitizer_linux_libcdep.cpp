@@ -552,6 +552,9 @@ extern "C" SANITIZER_WEAK_ATTRIBUTE void __libc_get_static_tls_bounds(void **,
 // bounds of the calling thread's pthread_setspecific slot array.
 extern "C" SANITIZER_WEAK_ATTRIBUTE void __pthread_current_tsd_range(void **,
                                                                      void **);
+// Also from the fork: bounds of the calling thread's struct pthread.
+extern "C" SANITIZER_WEAK_ATTRIBUTE void __pthread_current_thread_range(
+    void **, void **);
 #  endif
 
 #  if !SANITIZER_GO
@@ -675,6 +678,31 @@ static void GetTls(uptr *addr, uptr *size) {
     if (tsd_begin && *size && tsd_begin >= *addr + *size &&
         tsd_begin - (*addr + *size) <= 4096)
       *size = tsd_end - *addr;
+  }
+  // Include the thread descriptor (struct pthread) as well, as the glibc branch
+  // does via ThreadDescriptorSize(). musl carves the stack, the TLS image and
+  // the tsd array out of one mapping with internal __mmap/__munmap/__unmapself
+  // calls that bypass the interceptors, so when a mapping is recycled for a new
+  // thread the only shadow reset it gets is ThreadStart's, for the stack and
+  // the TLS range computed here. On TLS_ABOVE_TP targets (aarch64) the
+  // descriptor lies just below the thread pointer, outside the static TLS
+  // block, and its errno_val was reported by TSan as a race between the exited
+  // and the new thread. On x86_64 it lies between the TLS block and the tsd
+  // array and is already covered by the extension above. Same adjacency guard
+  // as for the tsd array: the main thread's descriptor may live elsewhere.
+  if (&__pthread_current_thread_range && *size) {
+    void *tcb_begin_ptr = nullptr;
+    void *tcb_end_ptr = nullptr;
+    __pthread_current_thread_range(&tcb_begin_ptr, &tcb_end_ptr);
+    const uptr tcb_begin = reinterpret_cast<uptr>(tcb_begin_ptr);
+    const uptr tcb_end = reinterpret_cast<uptr>(tcb_end_ptr);
+    if (tcb_begin && tcb_end <= *addr && *addr - tcb_end <= 4096) {
+      *size += *addr - tcb_begin;
+      *addr = tcb_begin;
+    } else if (tcb_begin && tcb_begin >= *addr + *size &&
+               tcb_begin - (*addr + *size) <= 4096) {
+      *size = tcb_end - *addr;
+    }
   }
 #      endif
 #    elif SANITIZER_NETBSD
@@ -980,10 +1008,19 @@ u64 MonotonicNanoTime() {
   return (u64)ts.tv_sec * (1000ULL * 1000 * 1000) + ts.tv_nsec;
 }
 #  else
-// Non-glibc & Go always use the regular function.
+// Non-glibc (e.g. musl) & Go: use the raw syscall rather than the libc
+// clock_gettime. Under a sanitizer that intercepts clock_gettime (TSan), the
+// interceptor processes pending asynchronous signals, i.e. runs user signal
+// handlers, which in TSan acquire slot locks. MonotonicNanoTime is called from
+// inside the allocator (SizeClassAllocator64::MaybeReleaseToOS) while the
+// allocator region mutex is held, so routing it through the interceptor
+// establishes an "allocator region mutex -> slot lock" order that deadlocks
+// against fork(): ForkBefore locks every slot and then the allocator. glibc
+// avoids this by calling the un-intercepted real_clock_gettime above; do the
+// equivalent here with the internal (raw-syscall) variant.
 u64 MonotonicNanoTime() {
   timespec ts;
-  clock_gettime(CLOCK_MONOTONIC, &ts);
+  internal_clock_gettime(CLOCK_MONOTONIC, &ts);
   return (u64)ts.tv_sec * (1000ULL * 1000 * 1000) + ts.tv_nsec;
 }
 #  endif  // SANITIZER_GLIBC && !SANITIZER_GO
