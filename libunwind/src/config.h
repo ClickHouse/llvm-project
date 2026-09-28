@@ -65,6 +65,14 @@
   #endif
 #endif
 
+// ClickHouse: the only platforms where DwarfRuleCache is used; elsewhere the
+// unwinder compiles as before. Apple is excluded because system frameworks can
+// unload images there.
+#if defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND) && defined(__linux__) &&          \
+    (defined(__x86_64__) || defined(__aarch64__))
+#define _LIBUNWIND_USE_DWARF_RULE_CACHE 1
+#endif
+
 #ifdef _LIBUNWIND_TRACE_RET_INJECT
 #define _LIBUNWIND_TRACE_NO_INLINE __attribute__((noinline, disable_tail_calls))
 #else
