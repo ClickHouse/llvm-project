@@ -499,7 +499,7 @@ static uptr UnmangleLongJmpSp(uptr mangled_sp) {
 #    endif
 
 #    if defined(__x86_64__)
-#      if SANITIZER_LINUX
+#      if SANITIZER_LINUX && !SANITIZER_MUSL
   // Reverse of:
   //   xor  %fs:0x30, %rsi
   //   rol  $0x11, %rsi
@@ -510,6 +510,9 @@ static uptr UnmangleLongJmpSp(uptr mangled_sp) {
       : "0" (mangled_sp));
   return sp;
 # else
+  // musl does not mangle the saved registers in jmp_buf, so the slot holds
+  // the stack pointer as-is. Applying the glibc unmangling to it would
+  // produce garbage and LongJmp would not find the matching jmp_buf.
   return mangled_sp;
 # endif
 #elif defined(__aarch64__)

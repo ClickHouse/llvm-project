@@ -668,14 +668,19 @@ int TgKill(pid_t pid, ThreadID tid, int sig) {
 }
 #  endif
 
-#  if SANITIZER_GLIBC
+#  if SANITIZER_LINUX
+// Use raw syscalls on all of Linux (glibc and musl). Under a sanitizer that
+// intercepts these libc functions (TSan), routing NanoTime/MonotonicNanoTime
+// through the interceptor runs pending-signal processing (user signal
+// handlers) from timing calls made while internal locks are held (e.g. the
+// allocator region mutex in MaybeReleaseToOS), which deadlocks against fork.
 u64 NanoTime() {
   kernel_timeval tv;
   internal_memset(&tv, 0, sizeof(tv));
   internal_syscall(SYSCALL(gettimeofday), &tv, 0);
   return (u64)tv.tv_sec * 1000 * 1000 * 1000 + tv.tv_usec * 1000;
 }
-// Used by real_clock_gettime.
+// Used by real_clock_gettime and by MonotonicNanoTime on non-glibc libc.
 uptr internal_clock_gettime(__sanitizer_clockid_t clk_id, void *tp) {
   return internal_syscall(SYSCALL(clock_gettime), clk_id, tp);
 }
