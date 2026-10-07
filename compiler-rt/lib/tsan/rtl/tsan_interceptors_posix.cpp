@@ -1306,11 +1306,14 @@ int cond_wait(ThreadState *thr, uptr pc, ScopedInterceptor *si, const Fn &fn,
   // This ensures that we handle mutex lock even in case of pthread_cancel.
   // See test/tsan/cond_cancel.cpp.
   {
+    // Run already pending signals outside the cleanup frame: a handler that
+    // longjmps from inside it would leave the frame registered.
+    ProcessPendingSignals(thr);
     CondMutexUnlockCtx<Fn> arg = {si, thr, pc, m, c, fn};
     res = call_pthread_cancel_with_cleanup(
         [](void *arg) -> int {
           // Enable signal delivery while the thread is blocked. Not earlier:
-          // the setjmp in pthread_cleanup_push runs tsan code that allocates.
+          // with glibc, pthread_cleanup_push enters tsan's allocating setjmp.
           BlockingCall bc(((const CondMutexUnlockCtx<Fn> *)arg)->thr);
           return ((const CondMutexUnlockCtx<Fn> *)arg)->Cancel();
         },
