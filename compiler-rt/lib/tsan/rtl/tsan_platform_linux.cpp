@@ -626,8 +626,8 @@ void ImitateTlsWrite(ThreadState *thr, uptr tls_addr, uptr tls_size) {
   MemoryRangeImitateWrite(thr, pc, thr_end, tls_addr + tls_size - thr_end);
 }
 
-// Note: this function runs with async signals enabled,
-// so it must not touch any tsan state.
+// Note: async signals must be enabled only inside fn: with glibc,
+// pthread_cleanup_push calls __sigsetjmp, which runs tsan code.
 int call_pthread_cancel_with_cleanup(int (*fn)(void *arg),
                                      void (*cleanup)(void *arg), void *arg) {
   // pthread_cleanup_push/pop are hardcore macros mess.
