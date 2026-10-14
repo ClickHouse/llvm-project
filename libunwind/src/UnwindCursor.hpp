@@ -54,6 +54,7 @@
 #include "CompactUnwinder.hpp"
 #include "config.h"
 #include "DwarfInstructions.hpp"
+#include "DwarfRuleCache.hpp"
 #include "EHHeaderParser.hpp"
 #include "libunwind.h"
 #include "libunwind_ext.h"
@@ -1088,6 +1089,33 @@ private:
 #else
     typename R::link_reg_t pc = this->getReg(UNW_REG_IP);
 #endif
+#if defined(_LIBUNWIND_USE_DWARF_RULE_CACHE)
+    if (_ruleCacheState != kRuleNotCacheable) {
+      // ClickHouse: see DwarfRuleCache.
+      const pint_t key = ruleCacheKey();
+      typename DwarfRuleCache<A>::Rule rule;
+      const bool cached =
+          DwarfRuleCache<A>::find(key, rule, DwarfRuleCache<A>::kStepPart);
+      if (cached && !rule.needsApplyRule)
+        return DwarfInstructions<A, R>::applyCachedRule(
+            _addressSpace, rule, _registers, _isSignalFrame);
+
+      // Constructed only here: it clears every register's location.
+      typename CFI_Parser<A>::PrologInfo prolog;
+      typename CFI_Parser<A>::CIE_Info cieInfo;
+      if (cached) {
+        DwarfRuleCache<A>::expandRule(rule, prolog, cieInfo);
+      } else {
+        if (!DwarfInstructions<A, R>::decodeRule(
+                _addressSpace, pc, (pint_t)_info.unwind_info, prolog, cieInfo))
+          return UNW_EBADFRAME;
+        if (DwarfRuleCache<A>::makeRule(prolog, cieInfo, _info, rule))
+          DwarfRuleCache<A>::add(key, rule);
+      }
+      return DwarfInstructions<A, R>::applyRule(
+          _addressSpace, prolog, cieInfo, _registers, _isSignalFrame, stage2);
+    }
+#endif
     return DwarfInstructions<A, R>::stepWithDwarf(
         _addressSpace, pc, (pint_t)_info.unwind_info, _registers,
         _isSignalFrame, stage2);
@@ -1389,6 +1417,17 @@ private:
 #ifdef _LIBUNWIND_TRACE_RET_INJECT
   uint32_t _walkedFrames;
 #endif
+#if defined(_LIBUNWIND_USE_DWARF_RULE_CACHE)
+  // ClickHouse: nonzero when `_info` is a DWARF rule from a loaded module,
+  // see `ruleCacheKey`. One byte, because `unw_cursor_t` has no more room.
+  uint8_t          _ruleCacheState = 0;
+
+  enum : uint8_t { kRuleNotCacheable, kRuleForReturnAddress, kRuleForIP };
+  pint_t ruleCacheKey() const {
+    return DwarfRuleCache<A>::makeKey((pint_t)_registers.getIP(),
+                                      _ruleCacheState == kRuleForReturnAddress);
+  }
+#endif
 };
 
 
@@ -1419,6 +1458,14 @@ bool UnwindCursor<A, R>::validReg(int regNum) {
 
 template <typename A, typename R>
 unw_word_t UnwindCursor<A, R>::getReg(int regNum) {
+#if defined(_LIBUNWIND_USE_DWARF_RULE_CACHE)
+  // ClickHouse: every step reads these, and `getRegister` is a switch that is
+  // not inlined.
+  if (regNum == UNW_REG_IP)
+    return _registers.getIP();
+  if (regNum == UNW_REG_SP)
+    return _registers.getSP();
+#endif
   return _registers.getRegister(regNum);
 }
 
@@ -2777,6 +2824,32 @@ void UnwindCursor<A, R>::setInfoBasedOnIPRegister(bool isReturnAddress) {
     return;
   }
 
+#if defined(_LIBUNWIND_USE_DWARF_RULE_CACHE)
+  // ClickHouse: see DwarfRuleCache.
+  _ruleCacheState = kRuleNotCacheable;
+  const uint8_t ruleCacheState =
+      isReturnAddress ? kRuleForReturnAddress : kRuleForIP;
+  {
+    typename DwarfRuleCache<A>::Rule rule;
+    if (DwarfRuleCache<A>::find(
+            DwarfRuleCache<A>::makeKey((pint_t)rawPC, isReturnAddress), rule,
+            DwarfRuleCache<A>::kInfoPart)) {
+      _info.start_ip = rule.startIP;
+      _info.end_ip = rule.endIP;
+      _info.lsda = rule.lsda;
+      _info.handler = rule.handler;
+      _info.gp = rule.gp;
+      _info.flags = 0;
+      _info.format = dwarfEncoding();
+      _info.unwind_info = rule.unwindInfo;
+      _info.unwind_info_size = rule.unwindInfoSize;
+      _info.extra = rule.extra;
+      _ruleCacheState = ruleCacheState;
+      return;
+    }
+  }
+#endif
+
   // If the last line of a function is a "throw" the compiler sometimes
   // emits no instructions after the call to __cxa_throw.  This means
   // the return address is actually the start of the next function.
@@ -2835,6 +2908,9 @@ void UnwindCursor<A, R>::setInfoBasedOnIPRegister(bool isReturnAddress) {
     if (sects.dwarf_section != 0) {
       if (this->getInfoFromDwarfSection(pc, sects)) {
         // found info in dwarf, done
+#if defined(_LIBUNWIND_USE_DWARF_RULE_CACHE)
+        _ruleCacheState = ruleCacheState;
+#endif
         return;
       }
     }

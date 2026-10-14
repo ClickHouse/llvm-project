@@ -38,6 +38,29 @@ public:
                            pint_t fdeStart, R &registers, bool &isSignalFrame,
                            bool stage2);
 
+  typedef typename CFI_Parser<A>::PrologInfo        PrologInfo;
+  typedef typename CFI_Parser<A>::CIE_Info          CIE_Info;
+
+#if defined(_LIBUNWIND_USE_DWARF_RULE_CACHE)
+  // ClickHouse: `stepWithDwarf` split in two, so that a cached rule can be
+  // applied without decoding the FDE again. Without the cache `stepWithDwarf`
+  // is the unsplit original.
+  static bool decodeRule(A &addressSpace,
+                         typename R::link_hardened_reg_arg_t pc,
+                         pint_t fdeStart, PrologInfo &prolog,
+                         CIE_Info &cieInfo);
+  static int applyRule(A &addressSpace, PrologInfo &prolog,
+                       const CIE_Info &cieInfo, R &registers,
+                       bool &isSignalFrame, bool stage2);
+
+  // ClickHouse: `applyRule` for a `DwarfRuleCache` rule that does not need it
+  // (see `needsApplyRule`). It visits only the saved registers instead of
+  // expanding the rule into a `PrologInfo`.
+  template <typename Rule>
+  static int applyCachedRule(A &addressSpace, const Rule &rule, R &registers,
+                             bool &isSignalFrame);
+#endif
+
 private:
 
   enum {
@@ -49,9 +72,7 @@ private:
   };
 
   typedef typename CFI_Parser<A>::RegisterLocation  RegisterLocation;
-  typedef typename CFI_Parser<A>::PrologInfo        PrologInfo;
   typedef typename CFI_Parser<A>::FDE_Info          FDE_Info;
-  typedef typename CFI_Parser<A>::CIE_Info          CIE_Info;
 
   static pint_t evaluateExpression(pint_t expression, A &addressSpace,
                                    const R &registers,
@@ -211,6 +232,83 @@ template <typename A, typename R>
 int DwarfInstructions<A, R>::stepWithDwarf(
     A &addressSpace, typename R::link_hardened_reg_arg_t pc, pint_t fdeStart,
     R &registers, bool &isSignalFrame, bool stage2) {
+#if defined(_LIBUNWIND_USE_DWARF_RULE_CACHE)
+  PrologInfo prolog;
+  CIE_Info cieInfo;
+  if (!decodeRule(addressSpace, pc, fdeStart, prolog, cieInfo))
+    return UNW_EBADFRAME;
+  return applyRule(addressSpace, prolog, cieInfo, registers, isSignalFrame,
+                   stage2);
+}
+
+template <typename A, typename R>
+bool DwarfInstructions<A, R>::decodeRule(A &addressSpace,
+                                         typename R::link_hardened_reg_arg_t pc,
+                                         pint_t fdeStart, PrologInfo &prolog,
+                                         CIE_Info &cieInfo) {
+  FDE_Info fdeInfo;
+  return CFI_Parser<A>::decodeFDE(addressSpace, fdeStart, &fdeInfo, &cieInfo) ==
+             NULL &&
+         CFI_Parser<A>::template parseFDEInstructions<R>(
+             addressSpace, fdeInfo, cieInfo, pc, R::getArch(), &prolog);
+}
+
+template <typename A, typename R>
+template <typename Rule>
+int DwarfInstructions<A, R>::applyCachedRule(A &addressSpace, const Rule &rule,
+                                             R &registers,
+                                             bool &isSignalFrame) {
+  pint_t cfa = (pint_t)((sint_t)registers.getRegister((int)rule.cfaRegister) +
+                        rule.cfaRegisterOffset);
+  R newRegisters = registers;
+  newRegisters.setSP(cfa);
+
+  // Same order and cases as the loop in `applyRule`: `rule.saved` is sorted
+  // by register and holds exactly the registers that are not unused.
+  typename R::reg_t returnAddress = 0;
+  bool returnAddressSaved = false;
+  constexpr int lastReg = R::lastDwarfRegNum();
+  for (uint8_t k = 0; k < rule.numSaved; ++k) {
+    const int i = rule.saved[k].reg;
+    RegisterLocation savedReg;
+    savedReg.location =
+        (typename CFI_Parser<A>::RegisterSavedWhere)rule.saved[k].location;
+    savedReg.initialStateSaved = false;
+    savedReg.value = rule.saved[k].value;
+    if (i > lastReg || savedReg.location == CFI_Parser<A>::kRegisterUnused)
+      continue;
+    if (registers.validFloatRegister(i)) {
+      newRegisters.setFloatRegister(
+          i, getSavedFloatRegister(addressSpace, registers, cfa, savedReg));
+    } else if (registers.validVectorRegister(i)) {
+      newRegisters.setVectorRegister(
+          i, getSavedVectorRegister(addressSpace, registers, cfa, savedReg));
+    } else if (i == (int)rule.returnAddressRegister) {
+      returnAddress = getSavedRegister(addressSpace, registers, cfa, savedReg);
+      returnAddressSaved = true;
+    } else if (registers.validRegister(i)) {
+      newRegisters.setRegister(
+          i, getSavedRegister(addressSpace, registers, cfa, savedReg));
+    } else {
+      return UNW_EBADREG;
+    }
+  }
+  if (!returnAddressSaved)
+    returnAddress = registers.getRegister(rule.returnAddressRegister);
+
+  isSignalFrame = rule.isSignalFrame;
+  newRegisters.setIP(returnAddress + rule.isSignalFrame);
+  registers = newRegisters;
+  return UNW_STEP_SUCCESS;
+}
+
+template <typename A, typename R>
+int DwarfInstructions<A, R>::applyRule(A &addressSpace, PrologInfo &prolog,
+                                       const CIE_Info &cieInfo, R &registers,
+                                       bool &isSignalFrame, bool stage2) {
+  {
+    {
+#else
   FDE_Info fdeInfo;
   CIE_Info cieInfo;
   if (CFI_Parser<A>::decodeFDE(addressSpace, fdeStart, &fdeInfo,
@@ -218,6 +316,7 @@ int DwarfInstructions<A, R>::stepWithDwarf(
     PrologInfo prolog;
     if (CFI_Parser<A>::template parseFDEInstructions<R>(
             addressSpace, fdeInfo, cieInfo, pc, R::getArch(), &prolog)) {
+#endif
       // get pointer to cfa (architecture specific)
       pint_t cfa = getCFA(addressSpace, prolog, registers);
 
@@ -426,7 +525,9 @@ int DwarfInstructions<A, R>::stepWithDwarf(
       return UNW_STEP_SUCCESS;
     }
   }
+#if !defined(_LIBUNWIND_USE_DWARF_RULE_CACHE)
   return UNW_EBADFRAME;
+#endif
 }
 
 template <typename A, typename R>
