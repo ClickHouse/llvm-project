@@ -132,8 +132,6 @@
 #      include <__locale_dir/locale_base_api/ibm.h>
 #    elif defined(__OpenBSD__)
 #      include <__locale_dir/locale_base_api/openbsd.h>
-#    elif defined(__wasi__) || _LIBCPP_HAS_MUSL_LIBC || defined(__sun)
-#      include <__locale_dir/locale_base_api/musl.h>
 #    endif
 
 #    include <__locale_dir/locale_base_api/bsd_locale_fallbacks.h>
