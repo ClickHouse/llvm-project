@@ -143,6 +143,10 @@ consteval __arg_t __determine_arg_t() {
 template <class, class _Ptr>
   requires(same_as<_Ptr, void*> || same_as<_Ptr, const void*> || same_as<_Ptr, nullptr_t>)
 consteval __arg_t __determine_arg_t() {
+#  ifdef _LIBCPP_DISALLOW_POINTERS
+  // ClickHouse: formatting of pointers is disallowed, as memory addresses must not leak into messages.
+  static_assert(sizeof(_Ptr) == 0, "formatting of pointers is disallowed");
+#  endif
   return __arg_t::__ptr;
 }
 

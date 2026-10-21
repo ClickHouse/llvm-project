@@ -152,12 +152,18 @@ public:
   basic_ostream& operator<<(float __f);
   basic_ostream& operator<<(double __f);
   basic_ostream& operator<<(long double __f);
+#  ifdef _LIBCPP_DISALLOW_POINTERS
+  // ClickHouse: printing of pointers is disallowed, as memory addresses must not leak into messages.
+  basic_ostream& operator<<(const void* __p) = delete;
+  basic_ostream& operator<<(const volatile void* __p) = delete;
+#  else
   basic_ostream& operator<<(const void* __p);
 
-#  if _LIBCPP_STD_VER >= 23
+#    if _LIBCPP_STD_VER >= 23
   _LIBCPP_HIDE_FROM_ABI basic_ostream& operator<<(const volatile void* __p) {
     return operator<<(const_cast<const void*>(__p));
   }
+#    endif
 #  endif
 
   basic_ostream& operator<<(basic_streambuf<char_type, traits_type>* __sb);
@@ -165,7 +171,11 @@ public:
 #  if _LIBCPP_STD_VER >= 17
   // LWG 2221 - nullptr. This is not backported to older standards modes.
   // See https://reviews.llvm.org/D127033 for more info on the rationale.
+#    ifdef _LIBCPP_DISALLOW_POINTERS
+  basic_ostream& operator<<(nullptr_t) = delete;
+#    else
   _LIBCPP_HIDE_FROM_ABI basic_ostream& operator<<(nullptr_t) { return *this << "nullptr"; }
+#    endif
 #  endif
 
   // 27.7.2.7 Unformatted output:
@@ -335,10 +345,12 @@ basic_ostream<_CharT, _Traits>& basic_ostream<_CharT, _Traits>::operator<<(long 
   return __put_num(__n);
 }
 
+#  ifndef _LIBCPP_DISALLOW_POINTERS
 template <class _CharT, class _Traits>
 basic_ostream<_CharT, _Traits>& basic_ostream<_CharT, _Traits>::operator<<(const void* __n) {
   return __put_num(__n);
 }
+#  endif
 
 template <class _CharT, class _Traits>
 _LIBCPP_HIDE_FROM_ABI basic_ostream<_CharT, _Traits>& operator<<(basic_ostream<_CharT, _Traits>& __os, _CharT __c) {
