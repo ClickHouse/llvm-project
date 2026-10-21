@@ -301,8 +301,7 @@ void ImitateTlsWrite(ThreadState *thr, uptr tls_addr, uptr tls_size) {
 #endif
 
 #if !SANITIZER_GO
-// Note: this function runs with async signals enabled,
-// so it must not touch any tsan state.
+// Note: async signals must be enabled only inside fn.
 int call_pthread_cancel_with_cleanup(int (*fn)(void *arg),
                                      void (*cleanup)(void *arg), void *arg) {
   // pthread_cleanup_push/pop are hardcore macros mess.
