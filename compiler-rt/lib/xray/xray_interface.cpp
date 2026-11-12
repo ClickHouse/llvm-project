@@ -30,6 +30,8 @@
 
 #include "sanitizer_common/sanitizer_addrhashmap.h"
 #include "sanitizer_common/sanitizer_common.h"
+#include "sanitizer_common/sanitizer_mutex.h"
+#include "sanitizer_common/sanitizer_posix.h"
 
 #include "xray_defs.h"
 #include "xray_flags.h"
@@ -67,17 +69,53 @@ static const int16_t cSledLength = 18;
 #error "Unsupported CPU Architecture"
 #endif /* CPU architecture */
 
+// The trampolines call these handlers without any check, so each one lives on a
+// page of its own that is read-only except while `storeHandler` writes it.
+// 64 KiB is the largest page size.
+static constexpr uptr kHandlerPageSize = 65536;
+
+struct alignas(kHandlerPageSize) ProtectedHandler {
+  atomic_uintptr_t Value;
+  char Padding[kHandlerPageSize - sizeof(atomic_uintptr_t)];
+};
+
 // This is the function to call when we encounter the entry or exit sleds.
-atomic_uintptr_t XRayPatchedFunction SANITIZER_INTERFACE_ATTRIBUTE{0};
+ProtectedHandler XRayPatchedFunction SANITIZER_INTERFACE_ATTRIBUTE{};
 
 // This is the function to call from the arg1-enabled sleds/trampolines.
-atomic_uintptr_t XRayArgLogger SANITIZER_INTERFACE_ATTRIBUTE{0};
+ProtectedHandler XRayArgLogger SANITIZER_INTERFACE_ATTRIBUTE{};
 
 // This is the function to call when we encounter a custom event log call.
-atomic_uintptr_t XRayPatchedCustomEvent SANITIZER_INTERFACE_ATTRIBUTE{0};
+ProtectedHandler XRayPatchedCustomEvent SANITIZER_INTERFACE_ATTRIBUTE{};
 
 // This is the function to call when we encounter a typed event log call.
-atomic_uintptr_t XRayPatchedTypedEvent SANITIZER_INTERFACE_ATTRIBUTE{0};
+ProtectedHandler XRayPatchedTypedEvent SANITIZER_INTERFACE_ATTRIBUTE{};
+
+static SpinMutex XRayHandlerMutex;
+
+static void setHandlerProtection(ProtectedHandler &Handler,
+                                 int Protection) XRAY_NEVER_INSTRUMENT {
+  if (internal_mprotect(&Handler, sizeof(Handler), Protection) != 0) {
+    Report("XRay: cannot change the protection of a handler.\n");
+    Die();
+  }
+}
+
+static void storeHandler(ProtectedHandler &Handler,
+                         uintptr_t Value) XRAY_NEVER_INSTRUMENT {
+  SpinMutexLock Guard(&XRayHandlerMutex);
+  setHandlerProtection(Handler, PROT_READ | PROT_WRITE);
+  atomic_store(&Handler.Value, Value, memory_order_release);
+  setHandlerProtection(Handler, PROT_READ);
+}
+
+void protectHandlers() XRAY_NEVER_INSTRUMENT {
+  SpinMutexLock Guard(&XRayHandlerMutex);
+  setHandlerProtection(XRayPatchedFunction, PROT_READ);
+  setHandlerProtection(XRayArgLogger, PROT_READ);
+  setHandlerProtection(XRayPatchedCustomEvent, PROT_READ);
+  setHandlerProtection(XRayPatchedTypedEvent, PROT_READ);
+}
 
 // This is the global status to determine whether we are currently
 // patching/unpatching.
@@ -518,8 +556,7 @@ int __xray_set_handler(void (*entry)(int32_t,
                                      XRayEntryType)) XRAY_NEVER_INSTRUMENT {
   if (atomic_load(&XRayInitialized, memory_order_acquire)) {
 
-    atomic_store(&__xray::XRayPatchedFunction,
-                 reinterpret_cast<uintptr_t>(entry), memory_order_release);
+    storeHandler(__xray::XRayPatchedFunction, reinterpret_cast<uintptr_t>(entry));
     return 1;
   }
   return 0;
@@ -528,8 +565,7 @@ int __xray_set_handler(void (*entry)(int32_t,
 int __xray_set_customevent_handler(void (*entry)(void *, size_t))
     XRAY_NEVER_INSTRUMENT {
   if (atomic_load(&XRayInitialized, memory_order_acquire)) {
-    atomic_store(&__xray::XRayPatchedCustomEvent,
-                 reinterpret_cast<uintptr_t>(entry), memory_order_release);
+    storeHandler(__xray::XRayPatchedCustomEvent, reinterpret_cast<uintptr_t>(entry));
     return 1;
   }
   return 0;
@@ -538,8 +574,7 @@ int __xray_set_customevent_handler(void (*entry)(void *, size_t))
 int __xray_set_typedevent_handler(void (*entry)(size_t, const void *,
                                                 size_t)) XRAY_NEVER_INSTRUMENT {
   if (atomic_load(&XRayInitialized, memory_order_acquire)) {
-    atomic_store(&__xray::XRayPatchedTypedEvent,
-                 reinterpret_cast<uintptr_t>(entry), memory_order_release);
+    storeHandler(__xray::XRayPatchedTypedEvent, reinterpret_cast<uintptr_t>(entry));
     return 1;
   }
   return 0;
@@ -618,8 +653,7 @@ int __xray_set_handler_arg1(void (*entry)(int32_t, XRayEntryType, uint64_t)) {
   // A relaxed write might not be visible even if the current thread gets
   // scheduled on a different CPU/NUMA node.  We need to wait for everyone to
   // have this handler installed for consistency of collected data across CPUs.
-  atomic_store(&XRayArgLogger, reinterpret_cast<uint64_t>(entry),
-               memory_order_release);
+  storeHandler(XRayArgLogger, reinterpret_cast<uintptr_t>(entry));
   return 1;
 }
 
