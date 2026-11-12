@@ -23,7 +23,12 @@
 #endif
 #endif
 
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#if defined(__linux__)
+#include <sys/auxv.h>
+#endif
 
 namespace __cxxabiv1 {
 
@@ -60,10 +65,36 @@ namespace {
   // So construction still has to work.)
 
   struct DtorList {
-    Dtor dtor;
+    uintptr_t mangled_dtor;
     void* obj;
     DtorList* next;
   };
+
+  // The destructors are called through a pointer without a CFI check, because Clang emits no CFI type for
+  // destructors. So, as glibc does for this list, keep the pointer mangled with a per-process secret, so that
+  // overwriting it in memory cannot redirect the call.
+  uintptr_t dtor_secret = 0;
+
+  void init_dtor_secret() {
+#if defined(__linux__)
+    if (const void* random = reinterpret_cast<const void*>(getauxval(AT_RANDOM)))
+      memcpy(&dtor_secret, random, sizeof(dtor_secret));
+#endif
+    if (dtor_secret == 0)
+      __abort_message("cannot initialize the secret for thread_local destructors");
+  }
+
+  constexpr unsigned dtor_rotation = 17;
+
+  uintptr_t mangle_dtor(Dtor dtor) {
+    uintptr_t value = reinterpret_cast<uintptr_t>(dtor) ^ dtor_secret;
+    return (value << dtor_rotation) | (value >> (sizeof(uintptr_t) * 8 - dtor_rotation));
+  }
+
+  __attribute__((no_sanitize("cfi-icall"))) void call_dtor(uintptr_t mangled_dtor, void* obj) {
+    uintptr_t value = (mangled_dtor >> dtor_rotation) | (mangled_dtor << (sizeof(uintptr_t) * 8 - dtor_rotation));
+    reinterpret_cast<Dtor>(value ^ dtor_secret)(obj);
+  }
 
   // The linked list of thread-local destructors to run
   __thread DtorList* dtors = nullptr;
@@ -75,7 +106,7 @@ namespace {
   void run_dtors(void*) {
     while (auto head = dtors) {
       dtors = head->next;
-      head->dtor(head->obj);
+      call_dtor(head->mangled_dtor, head->obj);
       ::free(head);
     }
 
@@ -84,6 +115,7 @@ namespace {
 
   struct DtorsManager {
     DtorsManager() {
+      init_dtor_secret();
       // There is intentionally no matching std::__libcpp_tls_delete call, as
       // __cxa_thread_atexit() may be called arbitrarily late (for example, from
       // global destructors or atexit() handlers).
@@ -124,7 +156,7 @@ extern "C" {
         return -1;
       }
 
-      head->dtor = dtor;
+      head->mangled_dtor = mangle_dtor(dtor);
       head->obj = obj;
       head->next = dtors;
       dtors = head;

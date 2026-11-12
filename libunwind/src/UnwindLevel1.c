@@ -107,6 +107,20 @@ static _Unwind_Personality_Fn get_handler_function(unw_proc_info_t *frameInfo) {
   return handler;
 }
 
+// The personality routine can be implemented outside the code built with Clang
+// CFI, for example Rust's `rust_eh_personality`, and then has no CFI type, so
+// this call cannot be checked. The pointer comes from the read-only unwind tables.
+#if defined(__clang__)
+__attribute__((no_sanitize("cfi-icall")))
+#endif
+static _Unwind_Reason_Code
+call_personality(_Unwind_Personality_Fn p, int version, _Unwind_Action actions,
+                 _Unwind_Exception_Class exceptionClass,
+                 _Unwind_Exception *exceptionObject,
+                 struct _Unwind_Context *context) {
+  return (*p)(version, actions, exceptionClass, exceptionObject, context);
+}
+
 static _Unwind_Reason_Code
 unwind_phase1(unw_context_t *uc, unw_cursor_t *cursor, _Unwind_Exception *exception_object) {
   __unw_init_local(cursor, uc);
@@ -169,7 +183,7 @@ unwind_phase1(unw_context_t *uc, unw_cursor_t *cursor, _Unwind_Exception *except
           "unwind_phase1(ex_obj=%p): calling personality function %p",
           (void *)exception_object, (void *)(uintptr_t)p);
       _Unwind_Reason_Code personalityResult =
-          (*p)(1, _UA_SEARCH_PHASE, exception_object->exception_class,
+          call_personality(p, 1, _UA_SEARCH_PHASE, exception_object->exception_class,
                exception_object, (struct _Unwind_Context *)(cursor));
       switch (personalityResult) {
       case _URC_HANDLER_FOUND:
@@ -300,7 +314,7 @@ unwind_phase2(unw_context_t *uc, unw_cursor_t *cursor,
         action = (_Unwind_Action)(_UA_CLEANUP_PHASE | _UA_HANDLER_FRAME);
       }
        _Unwind_Reason_Code personalityResult =
-          (*p)(1, action, exception_object->exception_class, exception_object,
+          call_personality(p, 1, action, exception_object->exception_class, exception_object,
                (struct _Unwind_Context *)(cursor));
       switch (personalityResult) {
       case _URC_CONTINUE_UNWIND:
@@ -417,7 +431,7 @@ unwind_phase2_forced(unw_context_t *uc, unw_cursor_t *cursor,
           "unwind_phase2_forced(ex_obj=%p): calling personality function %p",
           (void *)exception_object, (void *)(uintptr_t)p);
       _Unwind_Reason_Code personalityResult =
-          (*p)(1, action, exception_object->exception_class, exception_object,
+          call_personality(p, 1, action, exception_object->exception_class, exception_object,
                (struct _Unwind_Context *)(cursor));
       switch (personalityResult) {
       case _URC_CONTINUE_UNWIND:

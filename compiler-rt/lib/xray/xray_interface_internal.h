@@ -149,6 +149,9 @@ bool patchFunctionTailExit(bool Enable, uint32_t FuncId,
 bool patchCustomEvent(bool Enable, uint32_t FuncId, const XRaySledEntry &Sled);
 bool patchTypedEvent(bool Enable, uint32_t FuncId, const XRaySledEntry &Sled);
 
+// Makes the handlers that the trampolines call read-only.
+void protectHandlers();
+
 } // namespace __xray
 
 #endif

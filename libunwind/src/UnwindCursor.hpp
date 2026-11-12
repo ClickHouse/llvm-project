@@ -564,7 +564,7 @@ public:
 
   // libunwind does not and should not depend on C++ library which means that we
   // need our own definition of inline placement new.
-  static void *operator new(size_t, UnwindCursor<A, R> *p) { return p; }
+  static void *operator new(size_t, void *p) { return p; }
 
 private:
 
@@ -1010,7 +1010,7 @@ public:
 
   // libunwind does not and should not depend on C++ library which means that we
   // need our own definition of inline placement new.
-  static void *operator new(size_t, UnwindCursor<A, R> *p) { return p; }
+  static void *operator new(size_t, void *p) { return p; }
 
 private:
 
