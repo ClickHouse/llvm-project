@@ -156,6 +156,7 @@ void __xray_init() XRAY_NEVER_INSTRUMENT {
     return;
   }
 
+  protectHandlers();
   atomic_store(&XRayInitialized, true, memory_order_release);
 
 #ifndef XRAY_NO_PREINIT
