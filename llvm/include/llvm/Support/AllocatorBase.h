@@ -73,7 +73,9 @@ public:
   // core methods.
 
   /// Allocate space for a sequence of objects without constructing them.
-  template <typename T> T *Allocate(size_t Num = 1) {
+  /// Exempt from Clang CFI's cast check, like libc++'s `_LIBCPP_NO_CFI`: the memory is not an object of type T yet.
+  template <typename T>
+  LLVM_NO_SANITIZE("cfi-unrelated-cast") T *Allocate(size_t Num = 1) {
     return static_cast<T *>(Allocate(Num * sizeof(T), alignof(T)));
   }
 
