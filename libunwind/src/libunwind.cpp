@@ -83,7 +83,9 @@ _LIBUNWIND_HIDDEN int __unw_init_local(unw_cursor_t *cursor,
 # error Architecture not supported
 #endif
   // Use "placement new" to allocate UnwindCursor in the cursor buffer.
-  new (reinterpret_cast<UnwindCursor<LocalAddressSpace, REGISTER_KIND> *>(cursor))
+  // Construct into the raw buffer: a pointer to the cursor type before the
+  // cursor exists fails Clang CFI (`-fsanitize=cfi-unrelated-cast`).
+  new (static_cast<void *>(cursor))
       UnwindCursor<LocalAddressSpace, REGISTER_KIND>(
           context, LocalAddressSpace::sThisAddressSpace);
 #undef REGISTER_KIND
