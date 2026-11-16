@@ -28,6 +28,8 @@
 #include <string.h>
 #if defined(__linux__)
 #include <sys/auxv.h>
+#elif defined(__APPLE__)
+#include <sys/random.h>
 #else
 #include <unistd.h>
 #endif
