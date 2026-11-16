@@ -28,6 +28,8 @@
 #include <string.h>
 #if defined(__linux__)
 #include <sys/auxv.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace __cxxabiv1 {
@@ -79,6 +81,9 @@ namespace {
 #if defined(__linux__)
     if (const void* random = reinterpret_cast<const void*>(getauxval(AT_RANDOM)))
       memcpy(&dtor_secret, random, sizeof(dtor_secret));
+#else
+    if (getentropy(&dtor_secret, sizeof(dtor_secret)) != 0)
+      dtor_secret = 0;
 #endif
     if (dtor_secret == 0)
       __abort_message("cannot initialize the secret for thread_local destructors");
