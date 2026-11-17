@@ -1617,8 +1617,11 @@ inline void array_pod_sort(
 #ifdef EXPENSIVE_CHECKS
   detail::presortShuffle<IteratorTy>(Start, End);
 #endif
-  qsort(&*Start, NElts, sizeof(*Start),
-        reinterpret_cast<int (*)(const void *, const void *)>(Compare));
+  // Calling `Compare` through `qsort` as a function of `const void *` fails
+  // Clang CFI (`cfi-icall`).
+  std::sort(Start, End, [Compare](const auto &L, const auto &R) {
+    return Compare(&L, &R) < 0;
+  });
 }
 
 namespace detail {
