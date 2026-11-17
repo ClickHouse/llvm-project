@@ -127,6 +127,18 @@ _LIBUNWIND_EXPORT void *_Unwind_FindEnclosingFunction(void *pc) {
 #endif
 }
 
+// The trace function can be implemented outside the code built with Clang CFI,
+// for example in the sanitizer runtimes, which collect their stack traces with
+// _Unwind_Backtrace, and then has no CFI type, so this call cannot be checked.
+#if defined(__clang__)
+__attribute__((no_sanitize("cfi-icall")))
+#endif
+static _Unwind_Reason_Code call_trace_function(_Unwind_Trace_Fn callback,
+                                               struct _Unwind_Context *context,
+                                               void *ref) {
+  return (*callback)(context, ref);
+}
+
 /// Walk every frame and call trace function at each one.  If trace function
 /// returns anything other than _URC_NO_REASON, then walk is terminated.
 _LIBUNWIND_EXPORT _Unwind_Reason_Code
@@ -198,7 +210,7 @@ _Unwind_Backtrace(_Unwind_Trace_Fn callback, void *ref) {
     }
 
     // call trace function with this frame
-    result = (*callback)((struct _Unwind_Context *)(&cursor), ref);
+    result = call_trace_function(callback, (struct _Unwind_Context *)(&cursor), ref);
     if (result != _URC_NO_REASON) {
       _LIBUNWIND_TRACE_UNWINDING(
           " _backtrace: ended because callback returned %d", result);
