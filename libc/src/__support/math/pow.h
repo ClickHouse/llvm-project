@@ -472,18 +472,27 @@ LIBC_INLINE double pow(double x, double y) {
   // Clamp the exponent part into smaller range that fits double precision.
   // For those exponents that are out of range, the final conversion will round
   // them correctly to inf/max float or 0/min float accordingly.
+  // When the exponent is clamped, the low part must be dropped as well: it is
+  // the rounding error of the unclamped product, which can be as large as
+  // 2^54 for |y| = 2^100, and would otherwise be fed into the polynomial below
+  // and produce a result with a wrong sign or a finite garbage value, e.g.
+  // pow(10, 1e19) = -inf.
   constexpr double UPPER_EXP_BOUND = 512.0 * 0x1.0p6;
   if (LIBC_UNLIKELY(FPBits(y6_log2_x.hi).abs().get_val() >= UPPER_EXP_BOUND)) {
     if (FPBits(y6_log2_x.hi).sign() == Sign::POS) {
       scale = 0x1.0p512;
       y6_log2_x.hi -= 512.0 * 64.0;
-      if (y6_log2_x.hi > 513.0 * 64.0)
+      if (y6_log2_x.hi > 513.0 * 64.0) {
         y6_log2_x.hi = 513.0 * 64.0;
+        y6_log2_x.lo = 0.0;
+      }
     } else {
       scale = 0x1.0p-512;
       y6_log2_x.hi += 512.0 * 64.0;
-      if (y6_log2_x.hi < (-1076.0 + 512.0) * 64.0)
+      if (y6_log2_x.hi < (-1076.0 + 512.0) * 64.0) {
         y6_log2_x.hi = -564.0 * 64.0;
+        y6_log2_x.lo = 0.0;
+      }
     }
   }
 
