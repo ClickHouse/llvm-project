@@ -183,11 +183,15 @@ public:
       auto R = __sanitizer_change_code_protection(
           reinterpret_cast<uintptr_t>(PageAlignedAddr), MProtectLen, false);
       if (R != ZX_OK) {
-        Report("XRay: cannot change code protection: %s\n",
+        Report("XRay: cannot restore code protection: %s\n",
                _zx_status_get_string(R));
+        Die();
       }
 #else
-      mprotect(PageAlignedAddr, MProtectLen, PROT_READ | PROT_EXEC);
+      if (mprotect(PageAlignedAddr, MProtectLen, PROT_READ | PROT_EXEC) != 0) {
+        Report("XRay: cannot restore code protection.\n");
+        Die();
+      }
 #endif
     }
   }
