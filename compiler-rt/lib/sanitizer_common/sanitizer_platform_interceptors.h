@@ -639,13 +639,18 @@ SANITIZER_WEAK_IMPORT void *aligned_alloc(__sanitizer::usize __alignment,
 #define SANITIZER_INTERCEPT_GETUSERSHELL (SI_POSIX && !SI_ANDROID)
 #define SANITIZER_INTERCEPT_SL_INIT (SI_FREEBSD || SI_NETBSD)
 
+// ClickHouse: musl has getrandom and getentropy since 1.1.20, but __GLIBC_PREREQ
+// is hardcoded to 0 for non-glibc (sanitizer_glibc_version.h), which silently
+// disabled both interceptors on musl. Without them, MSan sees the output
+// buffer as uninitialized and reports a false positive on its first use.
+#define SI_GETRANDOM_LINUX (SI_LINUX && (SANITIZER_MUSL || __GLIBC_PREREQ(2, 25)))
 #define SANITIZER_INTERCEPT_GETRANDOM \
-  ((SI_LINUX && __GLIBC_PREREQ(2, 25)) || SI_FREEBSD || SI_SOLARIS)
+  (SI_GETRANDOM_LINUX || SI_FREEBSD || SI_SOLARIS)
 #define SANITIZER_INTERCEPT___CXA_ATEXIT SI_NETBSD
 #define SANITIZER_INTERCEPT_ATEXIT SI_NETBSD
 #define SANITIZER_INTERCEPT_PTHREAD_ATFORK SI_NETBSD
 #define SANITIZER_INTERCEPT_GETENTROPY \
-  ((SI_LINUX && __GLIBC_PREREQ(2, 25)) || SI_FREEBSD || SI_SOLARIS)
+  (SI_GETRANDOM_LINUX || SI_FREEBSD || SI_SOLARIS)
 #define SANITIZER_INTERCEPT_QSORT \
   (SI_POSIX && !SI_IOSSIM && !SI_WATCHOS && !SI_TVOS && !SI_ANDROID)
 #define SANITIZER_INTERCEPT_QSORT_R SI_GLIBC
