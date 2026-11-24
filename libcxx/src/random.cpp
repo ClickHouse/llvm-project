@@ -66,15 +66,41 @@ unsigned random_device::operator()() { return arc4random(); }
 
 #elif defined(_LIBCPP_USING_DEV_RANDOM)
 
-random_device::random_device(const string& __token) : __f_(open(__token.c_str(), O_RDONLY)) {
+// ClickHouse: on Linux, the default token is served by getentropy (the getrandom system call)
+// instead of opening /dev/urandom. It needs no file descriptor, so it works where /dev/urandom
+// is not available (a chroot or a minimal container without /dev, before /dev is mounted) and
+// when the process is out of file descriptors. `__f_` is -1 in this mode; the layout of
+// `random_device` is unchanged. Other tokens are still opened as files.
+#  if defined(__linux__)
+#    define _LIBCPP_RANDOM_DEVICE_LINUX_GETENTROPY
+#  endif
+
+random_device::random_device(const string& __token) {
+#  if defined(_LIBCPP_RANDOM_DEVICE_LINUX_GETENTROPY)
+  if (__token == "/dev/urandom") {
+    __f_ = -1;
+    return;
+  }
+#  endif
+  __f_ = open(__token.c_str(), O_RDONLY);
   if (__f_ < 0)
     std::__throw_system_error(errno, ("random_device failed to open " + __token).c_str());
 }
 
-random_device::~random_device() { close(__f_); }
+random_device::~random_device() {
+  if (__f_ >= 0)
+    close(__f_);
+}
 
 unsigned random_device::operator()() {
   unsigned r;
+#  if defined(_LIBCPP_RANDOM_DEVICE_LINUX_GETENTROPY)
+  if (__f_ < 0) {
+    if (getentropy(&r, sizeof(r)) != 0)
+      std::__throw_system_error(errno, "random_device getentropy failed");
+    return r;
+  }
+#  endif
   size_t n = sizeof(r);
   char* p  = reinterpret_cast<char*>(&r);
   while (n > 0) {
@@ -135,6 +161,11 @@ unsigned random_device::operator()() {
 #endif
 
 double random_device::entropy() const noexcept {
+#if defined(_LIBCPP_RANDOM_DEVICE_LINUX_GETENTROPY)
+  // getentropy returns data only after the kernel CRNG is initialized.
+  if (__f_ < 0)
+    return std::numeric_limits<result_type>::digits;
+#endif
 #if defined(_LIBCPP_USING_DEV_RANDOM) && defined(RNDGETENTCNT)
   int ent;
   if (::ioctl(__f_, RNDGETENTCNT, &ent) < 0)
