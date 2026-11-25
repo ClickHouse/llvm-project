@@ -105,7 +105,7 @@ void sleep_for(const chrono::duration<Rep, Period>& rel_time);
 #      include <__thread/jthread.h>
 #    endif
 
-#    if _LIBCPP_STD_VER >= 23
+#    if _LIBCPP_STD_VER >= 23 && !defined(_LIBCPP_NO_TRANSITIVE_FORMAT_INCLUDE)
 #      include <__thread/formatter.h>
 #    endif
 
