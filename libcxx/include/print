@@ -384,4 +384,11 @@ _LIBCPP_END_NAMESPACE_STD
 
 #endif // __cplusplus < 201103L && defined(_LIBCPP_USE_FROZEN_CXX03_HEADERS)
 
+#if defined(_LIBCPP_NO_TRANSITIVE_FORMAT_INCLUDE) && !(__cplusplus < 201103L && defined(_LIBCPP_USE_FROZEN_CXX03_HEADERS))
+// <ostream> does not include std::print for ostreams under this macro: provide it with <print>.
+#  if _LIBCPP_STD_VER >= 23 && _LIBCPP_HAS_LOCALIZATION
+#    include <__ostream/print.h>
+#  endif
+#endif
+
 #endif // _LIBCPP_PRINT

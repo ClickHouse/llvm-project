@@ -322,7 +322,7 @@ template<class T, class charT> requires is-vector-bool-reference<T> // Since C++
 #    include <__vector/erase.h>
 #  endif
 
-#  if _LIBCPP_STD_VER >= 23
+#  if _LIBCPP_STD_VER >= 23 && !defined(_LIBCPP_NO_TRANSITIVE_FORMAT_INCLUDE)
 #    include <__vector/vector_bool_formatter.h>
 #  endif
 

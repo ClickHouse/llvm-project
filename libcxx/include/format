@@ -264,4 +264,20 @@ namespace std {
 #  endif
 #endif // __cplusplus < 201103L && defined(_LIBCPP_USE_FROZEN_CXX03_HEADERS)
 
+#if defined(_LIBCPP_NO_TRANSITIVE_FORMAT_INCLUDE) && !(__cplusplus < 201103L && defined(_LIBCPP_USE_FROZEN_CXX03_HEADERS))
+// <vector>, <ostream>, <thread> and <chrono> do not include their std::format support under this macro: provide it here.
+#  if _LIBCPP_STD_VER >= 20 && _LIBCPP_HAS_LOCALIZATION && !_LIBCPP_HAS_EXPERIMENTAL_TZDB
+#    include <__chrono/formatter.h>
+#    include <__chrono/ostream.h>
+#    include <__chrono/parser_std_format_spec.h>
+#    include <__chrono/statically_widen.h>
+#  endif
+#  if _LIBCPP_STD_VER >= 23
+#    include <__vector/vector_bool_formatter.h>
+#    if _LIBCPP_HAS_THREADS
+#      include <__thread/formatter.h>
+#    endif
+#  endif
+#endif
+
 #endif // _LIBCPP_FORMAT

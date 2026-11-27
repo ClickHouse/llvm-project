@@ -181,7 +181,7 @@ void vprint_nonunicode(ostream& os, string_view fmt, format_args args);         
 
 #    include <__ostream/basic_ostream.h>
 
-#    if _LIBCPP_STD_VER >= 23
+#    if _LIBCPP_STD_VER >= 23 && !defined(_LIBCPP_NO_TRANSITIVE_FORMAT_INCLUDE)
 #      include <__ostream/print.h>
 #    endif
 

@@ -1117,7 +1117,8 @@ namespace std {
 #    include <__chrono/year_month_day.h>
 #    include <__chrono/year_month_weekday.h>
 
-#    if _LIBCPP_HAS_LOCALIZATION
+// Under the experimental tzdb, <__chrono/exception.h> above includes <format>, which then leaves these to <chrono>.
+#    if _LIBCPP_HAS_LOCALIZATION && (!defined(_LIBCPP_NO_TRANSITIVE_FORMAT_INCLUDE) || _LIBCPP_HAS_EXPERIMENTAL_TZDB)
 #      include <__chrono/formatter.h>
 #      include <__chrono/ostream.h>
 #      include <__chrono/parser_std_format_spec.h>
