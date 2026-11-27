@@ -383,19 +383,18 @@ AArch64Subtarget::AArch64Subtarget(const Triple &TT, StringRef CPU,
   if (AArch64::isX18ReservedByDefault(TT))
     ReserveXRegister.set(18);
 
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   CallLoweringInfo.reset(new AArch64CallLowering(*getTargetLowering()));
   InlineAsmLoweringInfo.reset(new InlineAsmLowering(getTargetLowering()));
   Legalizer.reset(new AArch64LegalizerInfo(*this));
 
   auto *RBI = new AArch64RegisterBankInfo(*getRegisterInfo());
 
-  // FIXME: At this point, we can't rely on Subtarget having RBI.
-  // It's awkward to mix passing RBI and the Subtarget; should we pass
-  // TII/TRI as well?
   InstSelector.reset(createAArch64InstructionSelector(
       *static_cast<const AArch64TargetMachine *>(&TM), *this, *RBI));
 
   RegBankInfo.reset(RBI);
+#endif
 
   auto TRI = getRegisterInfo();
   StringSet<> ReservedRegNames(llvm::from_range, ReservedRegsForRA);

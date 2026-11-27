@@ -826,7 +826,9 @@ extern "C" LLVM_C_ABI void LLVMInitializeX86TargetMC() {
                                                  createX86ObjectTargetStreamer);
 
     // Register the asm target streamer.
+#ifndef LLVM_DISABLE_ASM_PRINTING
     TargetRegistry::RegisterAsmTargetStreamer(*T, createX86AsmTargetStreamer);
+#endif
 
     // Register the null streamer.
     TargetRegistry::RegisterNullTargetStreamer(*T, createX86NullTargetStreamer);
@@ -835,7 +837,9 @@ extern "C" LLVM_C_ABI void LLVMInitializeX86TargetMC() {
     TargetRegistry::RegisterELFStreamer(*T, createX86ELFStreamer);
 
     // Register the MCInstPrinter.
+#ifndef LLVM_DISABLE_ASM_PRINTING
     TargetRegistry::RegisterMCInstPrinter(*T, createX86MCInstPrinter);
+#endif
 
     // Register the MC relocation info.
     TargetRegistry::RegisterMCRelocationInfo(*T, createX86MCRelocationInfo);

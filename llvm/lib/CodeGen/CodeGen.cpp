@@ -67,7 +67,9 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeJMCInstrumenterPass(Registry);
   initializeLazyMachineBlockFrequencyInfoPassPass(Registry);
   initializeLibcallLoweringInfoWrapperPass(Registry);
+#ifndef LLVM_DISABLE_DEBUG_INFO_EMISSION
   initializeLiveDebugValuesLegacyPass(Registry);
+#endif
   initializeLiveDebugVariablesWrapperLegacyPass(Registry);
   initializeLiveIntervalsWrapperPassPass(Registry);
   initializeLiveRangeShrinkPass(Registry);

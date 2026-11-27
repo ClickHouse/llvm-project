@@ -244,7 +244,9 @@ LLVMInitializeAArch64Target() {
   RegisterTargetMachine<AArch64leTargetMachine> W(getTheARM64_32Target());
   RegisterTargetMachine<AArch64leTargetMachine> V(getTheAArch64_32Target());
   auto &PR = *PassRegistry::getPassRegistry();
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   initializeGlobalISel(PR);
+#endif
   initializeAArch64A53Fix835769LegacyPass(PR);
   initializeAArch64A57FPLoadBalancingLegacyPass(PR);
   initializeAArch64CodeLayoutOptPass(PR);
@@ -260,13 +262,17 @@ LLVMInitializeAArch64Target() {
   initializeAArch64LoadStoreOptLegacyPass(PR);
   initializeAArch64MIPeepholeOptLegacyPass(PR);
   initializeAArch64SIMDInstrOptLegacyPass(PR);
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   initializeAArch64O0PreLegalizerCombinerLegacyPass(PR);
   initializeAArch64PreLegalizerCombinerLegacyPass(PR);
+#endif
   initializeAArch64PointerAuthLegacyPass(PR);
   initializeAArch64PostCoalescerLegacyPass(PR);
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   initializeAArch64PostLegalizerCombinerLegacyPass(PR);
   initializeAArch64PostSelectOptimizeLegacyPass(PR);
   initializeAArch64PostLegalizerLoweringLegacyPass(PR);
+#endif
   initializeAArch64PromoteConstantPass(PR);
   initializeAArch64RedundantCopyEliminationLegacyPass(PR);
   initializeAArch64RedundantCondBranchLegacyPass(PR);
@@ -412,8 +418,10 @@ AArch64TargetMachine::AArch64TargetMachine(const Target &T, const Triple &TT,
   if (TargetSupportsGISel && EnableGlobalISelAtO != -1 &&
       (static_cast<int>(getOptLevel()) <= EnableGlobalISelAtO ||
        (!GlobalISelFlag && !Options.EnableGlobalISel))) {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
     setGlobalISel(true);
     setGlobalISelAbort(GlobalISelAbortMode::Disable);
+#endif
   }
 
   LLT::setUseExtended(true);
@@ -618,8 +626,10 @@ public:
 } // end anonymous namespace
 
 void AArch64TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
+#ifndef LLVM_DISABLE_PIPELINE_PARSING
 #define GET_PASS_REGISTRY "AArch64PassRegistry.def"
 #include "llvm/Passes/TargetPassRegistry.inc"
+#endif
 
   PB.registerLateLoopOptimizationsEPCallback(
       [=](LoopPassManager &LPM, OptimizationLevel Level) {
@@ -776,11 +786,16 @@ bool AArch64PassConfig::addInstSelector() {
 }
 
 bool AArch64PassConfig::addIRTranslator() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   addPass(new IRTranslator(getOptLevel()));
   return false;
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 void AArch64PassConfig::addPreLegalizeMachineIR() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   if (getAArch64TargetMachine().isGlobalISelOptNone()) {
     addPass(createAArch64O0PreLegalizerCombiner());
     addPass(new Localizer());
@@ -790,14 +805,22 @@ void AArch64PassConfig::addPreLegalizeMachineIR() {
     if (EnableGISelLoadStoreOptPreLegal)
       addPass(new LoadStoreOpt());
   }
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 bool AArch64PassConfig::addLegalizeMachineIR() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   addPass(new Legalizer());
   return false;
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 void AArch64PassConfig::addPreRegBankSelect() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   const bool IsGlobalISelOptNone =
       getAArch64TargetMachine().isGlobalISelOptNone();
   if (!IsGlobalISelOptNone) {
@@ -806,18 +829,29 @@ void AArch64PassConfig::addPreRegBankSelect() {
       addPass(new LoadStoreOpt());
   }
   addPass(createAArch64PostLegalizerLowering());
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 bool AArch64PassConfig::addRegBankSelect() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   addPass(new RegBankSelect());
   return false;
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 bool AArch64PassConfig::addGlobalInstructionSelect() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   addPass(new InstructionSelect(getOptLevel()));
   if (!getAArch64TargetMachine().isGlobalISelOptNone())
     addPass(createAArch64PostSelectOptimize());
   return false;
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 void AArch64PassConfig::addMachineSSAOptimization() {
