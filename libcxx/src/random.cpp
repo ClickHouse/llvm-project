@@ -71,7 +71,9 @@ unsigned random_device::operator()() { return arc4random(); }
 // is not available (a chroot or a minimal container without /dev, before /dev is mounted) and
 // when the process is out of file descriptors. `__f_` is -1 in this mode; the layout of
 // `random_device` is unchanged. Other tokens are still opened as files.
-#  if defined(__linux__)
+// glibc declares getentropy only since 2.25 (the powerpc64le sysroot has 2.19), so older
+// glibc keeps opening /dev/urandom.
+#  if defined(__linux__) && (!defined(__GLIBC__) || __GLIBC_PREREQ(2, 25))
 #    define _LIBCPP_RANDOM_DEVICE_LINUX_GETENTROPY
 #  endif
 
