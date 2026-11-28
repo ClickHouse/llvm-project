@@ -512,7 +512,11 @@ const MCSection *AsmPrinter::getCurrentSection() const {
 }
 
 /// createDwarfDebug() - Create the DwarfDebug handler.
+#ifndef LLVM_DISABLE_DEBUG_INFO_EMISSION
 DwarfDebug *AsmPrinter::createDwarfDebug() { return new DwarfDebug(this); }
+#else
+DwarfDebug *AsmPrinter::createDwarfDebug() { return nullptr; }
+#endif
 
 void AsmPrinter::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
@@ -626,7 +630,11 @@ bool AsmPrinter::doInitialization(Module &M) {
     OutStreamer->addBlankLine();
   }
 
+#ifdef LLVM_DISABLE_DEBUG_INFO_EMISSION
+  if (false) {
+#else
   if (MAI.doesSupportDebugInformation()) {
+#endif
     bool EmitCodeView = M.getCodeViewFlag();
     // On Windows targets, emit minimal CodeView compiler info even when debug
     // info is disabled.

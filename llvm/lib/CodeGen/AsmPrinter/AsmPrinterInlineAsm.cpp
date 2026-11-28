@@ -76,6 +76,9 @@ void AsmPrinter::emitInlineAsm(StringRef Str, const MCSubtargetInfo &STI,
                                InlineAsm::AsmDialect Dialect,
                                const MachineInstr *MI) {
   assert(!Str.empty() && "Can't emit empty inline asm block");
+#ifdef LLVM_DISABLE_ASM_PRINTING
+  report_fatal_error("inline assembly is not available in this build");
+#endif
 
   // Remember if the buffer is nul terminated or not so we can avoid a copy.
   bool isNullTerminated = Str.back() == 0;

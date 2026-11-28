@@ -276,8 +276,12 @@ void X86CodeGenPassBuilder::addAsmPrinterEnd(PassManagerWrapper &PMW) const {
 } // namespace
 
 void X86TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
+#ifndef LLVM_DISABLE_PIPELINE_PARSING
 #define GET_PASS_REGISTRY "X86PassRegistry.def"
 #include "llvm/Passes/TargetPassRegistry.inc"
+#else
+  auto *PIC = PB.getPassInstrumentationCallbacks();
+#endif
   // TODO(boomanaiden154): Move this into the base CodeGenPassBuilder once all
   // targets that currently implement it have a ported asm-printer pass.
   if (PIC) {

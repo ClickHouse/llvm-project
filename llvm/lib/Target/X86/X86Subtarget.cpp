@@ -340,12 +340,14 @@ X86Subtarget::X86Subtarget(const Triple &TT, StringRef CPU, StringRef TuneCPU,
   else if (isTargetELF())
     setPICStyle(PICStyles::Style::GOT);
 
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   CallLoweringInfo.reset(new X86CallLowering(*getTargetLowering()));
   Legalizer.reset(new X86LegalizerInfo(*this, TM));
 
   auto *RBI = new X86RegisterBankInfo(*getRegisterInfo());
   RegBankInfo.reset(RBI);
   InstSelector.reset(createX86InstructionSelector(TM, *this, *RBI));
+#endif
 }
 
 // Define the virtual destructor out-of-line for build efficiency.

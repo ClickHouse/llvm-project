@@ -72,7 +72,9 @@ extern "C" LLVM_C_ABI void LLVMInitializeX86Target() {
   initializeX86LowerAMXIntrinsicsLegacyPassPass(PR);
   initializeX86LowerAMXTypeLegacyPassPass(PR);
   initializeX86PreTileConfigLegacyPass(PR);
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   initializeGlobalISel(PR);
+#endif
   initializeWinEHStateLegacyPass(PR);
   initializeX86FixupBWInstLegacyPass(PR);
   initializeCompressEVEXLegacyPass(PR);
@@ -107,8 +109,10 @@ extern "C" LLVM_C_ABI void LLVMInitializeX86Target() {
   initializeX86DynAllocaExpanderLegacyPass(PR);
   initializeX86SuppressAPXForRelocationLegacyPass(PR);
   initializeX86WinEHUnwindV2LegacyPass(PR);
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   initializeX86PreLegalizerCombinerLegacyPass(PR);
   initializeX86PostLegalizerCombinerLegacyPass(PR);
+#endif
   initializeX86WinEHUnwindV3Pass(PR);
 }
 
@@ -462,38 +466,62 @@ bool X86PassConfig::addInstSelector() {
 }
 
 bool X86PassConfig::addIRTranslator() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   addPass(new IRTranslator(getOptLevel()));
   return false;
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 void X86PassConfig::addPreRegBankSelect() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   bool IsOptNone = getOptLevel() == CodeGenOptLevel::None;
   if (!IsOptNone) {
     addPass(createX86PostLegalizerCombinerLegacy());
   }
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 bool X86PassConfig::addLegalizeMachineIR() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   addPass(new Legalizer());
   return false;
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 bool X86PassConfig::addRegBankSelect() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   addPass(new RegBankSelect());
   return false;
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 bool X86PassConfig::addGlobalInstructionSelect() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   addPass(new InstructionSelect(getOptLevel()));
   // Add GlobalBaseReg in case there is no SelectionDAG passes afterwards
   if (isGlobalISelAbortEnabled())
     addPass(createX86GlobalBaseRegLegacyPass());
   return false;
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 void X86PassConfig::addPreLegalizeMachineIR() {
+#ifndef LLVM_DISABLE_GLOBAL_ISEL
   if (getOptLevel() != CodeGenOptLevel::None) {
     addPass(createX86PreLegalizerCombinerLegacy());
   }
+#else
+  report_fatal_error("GlobalISel is not available in this build");
+#endif
 }
 
 bool X86PassConfig::addILPOpts() {

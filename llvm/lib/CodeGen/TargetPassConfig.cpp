@@ -1238,7 +1238,9 @@ void TargetPassConfig::addMachinePasses() {
 
   addPass(&RemoveLoadsIntoFakeUsesID);
   addPass(&StackMapLivenessID);
+#ifndef LLVM_DISABLE_DEBUG_INFO_EMISSION
   addPass(&LiveDebugValuesID);
+#endif
   addPass(&MachineSanitizerBinaryMetadataID);
 
   if (TM->Options.EnableMachineOutliner &&

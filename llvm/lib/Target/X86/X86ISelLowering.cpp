@@ -2916,7 +2916,11 @@ X86TargetLowering::getPreferredVectorAction(MVT VT) const {
 FastISel *X86TargetLowering::createFastISel(
     FunctionLoweringInfo &funcInfo, const TargetLibraryInfo *libInfo,
     const LibcallLoweringInfo *libcallLowering) const {
+#ifndef LLVM_DISABLE_FAST_ISEL
   return X86::createFastISel(funcInfo, libInfo, libcallLowering);
+#else
+  return nullptr;
+#endif
 }
 
 //===----------------------------------------------------------------------===//

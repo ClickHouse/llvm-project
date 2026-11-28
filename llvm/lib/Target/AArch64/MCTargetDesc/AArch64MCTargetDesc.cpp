@@ -549,14 +549,18 @@ LLVMInitializeAArch64TargetMC() {
         *T, createAArch64ObjectTargetStreamer);
 
     // Register the asm streamer.
+#ifndef LLVM_DISABLE_ASM_PRINTING
     TargetRegistry::RegisterAsmTargetStreamer(*T,
                                               createAArch64AsmTargetStreamer);
+#endif
     // Register the null streamer.
     TargetRegistry::RegisterNullTargetStreamer(*T,
                                                createAArch64NullTargetStreamer);
 
     // Register the MCInstPrinter.
+#ifndef LLVM_DISABLE_ASM_PRINTING
     TargetRegistry::RegisterMCInstPrinter(*T, createAArch64MCInstPrinter);
+#endif
   }
 
   // Register the asm backend.
