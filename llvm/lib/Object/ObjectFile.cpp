@@ -210,8 +210,12 @@ ObjectFile::createObjectFile(MemoryBufferRef Object, file_magic Type,
 
 Expected<OwningBinary<ObjectFile>>
 ObjectFile::createObjectFile(StringRef ObjectPath) {
+  // Object file parsing does not need a null terminator. Requiring one makes
+  // MemoryBuffer read a file whose size is a multiple of the page size into
+  // a heap buffer instead of mapping it.
   ErrorOr<std::unique_ptr<MemoryBuffer>> FileOrErr =
-      MemoryBuffer::getFile(ObjectPath);
+      MemoryBuffer::getFile(ObjectPath, /*IsText=*/false,
+                            /*RequiresNullTerminator=*/false);
   if (std::error_code EC = FileOrErr.getError())
     return errorCodeToError(EC);
   std::unique_ptr<MemoryBuffer> Buffer = std::move(FileOrErr.get());
